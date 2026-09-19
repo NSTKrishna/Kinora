@@ -198,7 +198,7 @@ that matter are the expensive ones.
 
 `GET /api/health` reports database reachability, provider, today's spend against
 the cap and the stuck-job count, and says nothing about any user, so it is safe
-to leave open. [`/status`](/status) is the same thing for humans.
+to leave open. `/status` is the same thing for humans.
 
 ## Effects
 
