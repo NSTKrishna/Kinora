@@ -95,3 +95,54 @@
     scrollbar-width: none;
   }
 }
+
+@layer base {
+  /**
+   * Respect the OS setting.
+   *
+   * Kinora is a motion product, so this cannot mean "no video" — a feed of
+   * frozen frames would be a different product. It means nothing moves that
+   * the visitor did not ask to move: no entry animations, no shimmer, no
+   * hover drift, no auto-scroll. Video still plays when it is pointed at or
+   * opened, because that is the content.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    .animate-fade-up,
+    .animate-shimmer {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
+
+    /* Lift-on-hover reads as drift when motion is reduced. */
+    .hover\:-translate-y-0\.5:hover,
+    .focus-within\:-translate-y-0\.5:focus-within {
+      transform: none !important;
+    }
+  }
+
+  /* A visible focus ring everywhere, not only where a component remembered. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Skip past the nav; the first thing a keyboard or screen reader meets. */
+  .skip-link {
+    @apply absolute left-4 top-4 z-[100] -translate-y-20 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-transform;
+  }
+  .skip-link:focus {
+    @apply translate-y-0;
+  }
+}

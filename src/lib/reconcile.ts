@@ -24,6 +24,12 @@ export async function reconcile(
     case "queued":
       return job;
 
+    // The provider did not answer. The render is probably still going, so
+    // change nothing; if it really is gone, the stuck-job sweep will refund it.
+    case "unknown":
+      console.warn(`[kinora] provider unreachable for job ${job.id}: ${status.error}`);
+      return job;
+
     case "running":
       return job.status === "running" ? job : transition(job, { status: "running" });
 

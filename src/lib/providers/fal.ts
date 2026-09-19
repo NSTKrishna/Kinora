@@ -1,6 +1,7 @@
 import { fal } from "@fal-ai/client";
 
 import type { AnyModel } from "@/lib/models";
+import { retry, TimeoutError, withTimeout } from "@/lib/retry";
 import {
   ProviderError,
   type GenerationProvider,
@@ -16,7 +17,15 @@ import {
  *
  * Docs checked 2026-09-20: fal.queue.submit / status / result / cancel,
  * statuses IN_QUEUE | IN_PROGRESS | COMPLETED.
+ *
+ * Every call has a deadline. Reads are retried with backoff because repeating
+ * them is free and safe; submit is not, because a request that reached fal
+ * before the connection dropped would be queued twice — a render nobody asked
+ * for and a bill nobody agreed to.
  */
+
+const SUBMIT_TIMEOUT_MS = 20_000;
+const READ_TIMEOUT_MS = 15_000;
 
 let configured = false;
 
@@ -77,11 +86,15 @@ export const falProvider: GenerationProvider = {
 
   async submit({ model, params, jobId, webhookUrl }: SubmitArgs) {
     try {
-      const { request_id } = await client().queue.submit(model.providerModelId, {
-        input: params,
-        // The job id rides along so the webhook can find its row without a lookup table.
-        webhookUrl: webhookUrl ? `${webhookUrl}?job=${jobId}` : undefined,
-      });
+      const { request_id } = await withTimeout(
+        client().queue.submit(model.providerModelId, {
+          input: params,
+          // The job id rides along so the webhook can find its row without a lookup table.
+          webhookUrl: webhookUrl ? `${webhookUrl}?job=${jobId}` : undefined,
+        }),
+        SUBMIT_TIMEOUT_MS,
+        "fal submit",
+      );
       return { providerRequestId: request_id };
     } catch (error) {
       throw new ProviderError(`fal submit failed: ${describe(error)}`);
@@ -90,9 +103,15 @@ export const falProvider: GenerationProvider = {
 
   async status(model: AnyModel, providerRequestId: string): Promise<ProviderStatus> {
     try {
-      const status = await client().queue.status(model.providerModelId, {
-        requestId: providerRequestId,
-      });
+      const status = await retry(
+        () =>
+          withTimeout(
+            client().queue.status(model.providerModelId, { requestId: providerRequestId }),
+            READ_TIMEOUT_MS,
+            "fal status",
+          ),
+        { attempts: 3, label: "fal status" },
+      );
 
       switch (status.status) {
         case "IN_QUEUE":
@@ -115,17 +134,27 @@ export const falProvider: GenerationProvider = {
       }
     } catch (error) {
       const message = describe(error);
-      return looksFlagged(message)
-        ? { state: "nsfw", error: message }
+      if (looksFlagged(message)) return { state: "nsfw", error: message };
+
+      // A refusal is a verdict; a timeout or a 5xx is us failing to ask. Only
+      // the first should cost the user their render.
+      return isUnreachable(error)
+        ? { state: "unknown", error: message }
         : { state: "failed", error: message };
     }
   },
 
   async result(model: AnyModel, providerRequestId: string): Promise<ProviderResult> {
     try {
-      const response = await client().queue.result(model.providerModelId, {
-        requestId: providerRequestId,
-      });
+      const response = await retry(
+        () =>
+          withTimeout(
+            client().queue.result(model.providerModelId, { requestId: providerRequestId }),
+            READ_TIMEOUT_MS,
+            "fal result",
+          ),
+        { attempts: 3, label: "fal result" },
+      );
       const { assets, flagged } = toAssets(response.data);
       if (!assets.length && !flagged) {
         throw new ProviderError("fal returned no output");
@@ -138,7 +167,11 @@ export const falProvider: GenerationProvider = {
 
   async cancel(model: AnyModel, providerRequestId: string) {
     try {
-      await client().queue.cancel(model.providerModelId, { requestId: providerRequestId });
+      await withTimeout(
+        client().queue.cancel(model.providerModelId, { requestId: providerRequestId }),
+        READ_TIMEOUT_MS,
+        "fal cancel",
+      );
     } catch (error) {
       // 400 means it already finished — not worth failing the user's request over.
       const message = describe(error);
@@ -148,6 +181,21 @@ export const falProvider: GenerationProvider = {
     }
   },
 };
+
+/** Did we fail to ask, rather than get an answer we did not like? */
+function isUnreachable(error: unknown): boolean {
+  if (error instanceof TimeoutError) return true;
+  const message = describe(error).toLowerCase();
+  return (
+    message.includes("fetch failed") ||
+    message.includes("econnreset") ||
+    message.includes("enotfound") ||
+    message.includes("etimedout") ||
+    message.includes("socket hang up") ||
+    message.includes("network") ||
+    /\b(500|502|503|504)\b/.test(message)
+  );
+}
 
 export function describe(error: unknown): string {
   if (error instanceof Error) return error.message;

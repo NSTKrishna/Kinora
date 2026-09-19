@@ -17,7 +17,7 @@ import { ACTIVE_STATUSES } from "@/lib/jobs";
 export const MAX_ACTIVE_JOBS_PER_USER = 2;
 export const MAX_GUESTS_PER_IP_PER_DAY = 8;
 
-function dailyCreditCap(): number {
+export function dailyCreditCap(): number {
   const raw = Number(process.env.DAILY_CREDIT_CAP);
   return Number.isFinite(raw) && raw > 0 ? raw : 5_000;
 }
@@ -114,4 +114,20 @@ export async function assertCanGenerate(params: {
       "Demo capacity reached for today. Kinora caps what the demo can spend — nothing was charged, and renders resume at midnight UTC.",
     );
   }
+}
+
+/** Everything /api/health and /status need about today's spend. */
+export async function capacitySnapshot() {
+  const cap = dailyCreditCap();
+  const spent = await creditsSpentToday();
+
+  return {
+    cap,
+    spent,
+    remaining: Math.max(0, cap - spent),
+    /** 0..1, for a bar that never goes past full. */
+    used: cap > 0 ? Math.min(1, spent / cap) : 1,
+    maxActiveJobsPerUser: MAX_ACTIVE_JOBS_PER_USER,
+    maxGuestsPerIpPerDay: MAX_GUESTS_PER_IP_PER_DAY,
+  };
 }

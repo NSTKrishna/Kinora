@@ -10,9 +10,8 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { AssetMedia } from "@/components/studio/asset-media";
-import { MediaCard } from "@/components/media-card";
 import { recreateAssetHref } from "@/lib/recreate";
-import { FEED_ITEMS, type FeedItem } from "@/lib/placeholder";
+import { SEED_ASSETS, SEED_IS_REAL, type SeedAsset } from "@/lib/seed";
 import type { ExploreItem } from "@/lib/serialize";
 
 type Filter = "all" | "image" | "video" | "effect";
@@ -26,11 +25,32 @@ const FILTERS: { id: Filter; label: string }[] = [
 
 /**
  * Below this many real public renders the feed looks broken rather than new, so
- * sample tiles fill the rest of the grid. They are labelled as samples and
- * never counted as anyone's work — a demo that fakes a community is worse than
- * one that admits it is young.
+ * the seed set fills the rest of the grid. Seed tiles are labelled and never
+ * counted as anyone's work — a demo that fakes a community is worse than one
+ * that admits it is young. Recreate still works on them, because the prompt is
+ * ours and the composer can take it.
  */
 const MIN_TILES = 8;
+
+/** A seed asset, in the shape the feed already knows how to render. */
+function seedToItem(seed: SeedAsset): ExploreItem {
+  return {
+    id: `seed-${seed.slug}`,
+    jobId: null,
+    kind: seed.kind,
+    url: seed.url,
+    thumbUrl: null,
+    width: seed.width ?? null,
+    height: seed.height ?? null,
+    durationMs: seed.durationMs,
+    prompt: seed.prompt,
+    modelId: seed.modelId,
+    isPublic: true,
+    createdAt: "",
+    presetSlug: null,
+    modelLabel: null,
+  };
+}
 
 type Page = { items: ExploreItem[]; nextCursor: string | null };
 
@@ -96,10 +116,12 @@ export function ExploreFeed({ initial }: { initial: Page }) {
     return () => observer.disconnect();
   }, [cursor, filter, load, loading]);
 
-  // Samples only ever pad the grid; real work always comes first.
+  // Seeds only ever pad the grid; real work always comes first.
   const samples = React.useMemo(() => {
     if (cursor || items.length >= MIN_TILES) return [];
-    return sampleFor(filter).slice(0, MIN_TILES - items.length);
+    return seedsFor(filter)
+      .slice(0, MIN_TILES - items.length)
+      .map(seedToItem);
   }, [cursor, filter, items.length]);
 
   const empty = !loading && !error && items.length === 0 && samples.length === 0;
@@ -159,9 +181,9 @@ export function ExploreFeed({ initial }: { initial: Page }) {
           </div>
         ))}
 
-        {samples.map((item, i) => (
+        {samples.map((item) => (
           <div key={item.id} className="mb-4 break-inside-avoid">
-            <MediaCard item={item} seed={i} sample />
+            <PublicCard item={item} onOpen={() => setOpen(item)} sample />
           </div>
         ))}
       </div>
@@ -180,16 +202,24 @@ export function ExploreFeed({ initial }: { initial: Page }) {
   );
 }
 
-/** Samples are matched to the filter so "Videos" never shows a still. */
-function sampleFor(filter: Filter): FeedItem[] {
-  if (filter === "image") return FEED_ITEMS.filter((item) => item.kind === "image");
+/** Seeds are matched to the filter so "Videos" never shows a still. */
+function seedsFor(filter: Filter): SeedAsset[] {
+  if (filter === "image") return SEED_ASSETS.filter((item) => item.kind === "image");
   if (filter === "video" || filter === "effect") {
-    return FEED_ITEMS.filter((item) => item.kind === "video");
+    return SEED_ASSETS.filter((item) => item.kind === "video");
   }
-  return FEED_ITEMS;
+  return SEED_ASSETS;
 }
 
-function PublicCard({ item, onOpen }: { item: ExploreItem; onOpen: () => void }) {
+function PublicCard({
+  item,
+  onOpen,
+  sample = false,
+}: {
+  item: ExploreItem;
+  onOpen: () => void;
+  sample?: boolean;
+}) {
   return (
     <article className="hover:glow-ember focus-within:glow-ember group relative isolate w-full overflow-hidden rounded-lg border border-border/70 bg-card transition-[transform,box-shadow] duration-300 ease-out focus-within:-translate-y-0.5 hover:-translate-y-0.5">
       <button type="button" onClick={onOpen} className="block w-full focus-visible:outline-none">
@@ -202,11 +232,23 @@ function PublicCard({ item, onOpen }: { item: ExploreItem; onOpen: () => void })
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
 
+      {sample ? (
+        <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/60 px-2 py-1 text-micro font-medium uppercase tracking-[0.12em] text-white/80 backdrop-blur">
+          Sample
+        </span>
+      ) : null}
+
       <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3">
         {item.prompt ? <p className="line-clamp-2 text-sm text-white/90">{item.prompt}</p> : null}
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="truncate text-micro uppercase tracking-[0.14em] text-white/55">
-            {item.presetSlug ? `Effect · ${item.presetSlug}` : (item.modelLabel ?? "Kinora")}
+            {sample
+              ? SEED_IS_REAL
+                ? "Kinora sample"
+                : "Kinora sample · placeholder render"
+              : item.presetSlug
+                ? `Effect · ${item.presetSlug}`
+                : (item.modelLabel ?? "Kinora")}
           </span>
           <Link
             href={recreateAssetHref(item)}

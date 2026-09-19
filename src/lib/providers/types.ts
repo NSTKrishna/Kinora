@@ -6,7 +6,15 @@ export type ProviderStatus =
   | { state: "running" }
   | { state: "completed" }
   | { state: "failed"; error: string }
-  | { state: "nsfw"; error: string };
+  | { state: "nsfw"; error: string }
+  /**
+   * We could not get an answer — a timeout, a dropped connection, a 5xx.
+   * Distinct from `failed` on purpose: the render may well still be running,
+   * so the job is left alone and the stuck-job sweep decides if it never
+   * comes back. Treating an unreachable provider as a failure would throw
+   * away work every time the network hiccuped.
+   */
+  | { state: "unknown"; error: string };
 
 export type ProviderAsset = {
   kind: "image" | "video";

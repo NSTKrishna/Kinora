@@ -2,23 +2,128 @@
 
 A creative studio for AI images and video. Explore what others made, generate your own, remix anything.
 
-Kinora is dark, media-first and guest-first: the whole product is browsable without an account, and you get credits to try a render before signing in.
+Kinora is dark, media-first and **guest-first**: the whole product works without an account. A first visit mints a session, grants credits, and every page — Explore, Image, Video, Effects, Cinema, Characters, Library — is usable immediately.
 
-## Stack
+Built in 24 hours as an original product in the Higgsfield AI category. Not a clone: own name, own identity, own generated media.
 
-Next.js (App Router) · TypeScript · Tailwind · shadcn/ui · Postgres (Neon) + Drizzle · fal.ai behind a provider adapter · Vercel Blob · deployed on Vercel · pnpm.
+## Architecture
+
+```mermaid
+flowchart TB
+    Visitor(["Visitor — no account"])
+
+    subgraph Edge
+        MW["middleware<br/>signs a guest cookie"]
+    end
+
+    subgraph App["Next.js App Router"]
+        direction LR
+        Pages["Explore · Image · Video<br/>Effects · Cinema · Characters<br/>Library · Pricing · Status"]
+        API["/api/generate · /api/jobs/[id]<br/>/api/cinema · /api/explore<br/>/api/credits · /api/health"]
+    end
+
+    subgraph Core["Domain — one path each"]
+        Registry["lib/models.ts<br/>registry: schema, price, capabilities"]
+        Compilers["lib/effects.ts · lib/cinema.ts<br/>prompt compilers"]
+        Gen["lib/generate.ts<br/>safety → capacity → charge → submit"]
+        Trans["lib/jobs.ts transition()<br/>the only status change"]
+        Credits["lib/credits.ts<br/>append-only ledger"]
+    end
+
+    subgraph Providers
+        Mock["mock<br/>own sample media, free"]
+        Fal["fal.ai queue<br/>timeouts + retried reads"]
+    end
+
+    DB[("Neon Postgres<br/>users · credit_ledger · jobs<br/>assets · presets · characters<br/>cinema_projects")]
+    Blob[("Vercel Blob<br/>uploads")]
+
+    Visitor --> MW --> Pages
+    Pages --> API
+    API --> Compilers --> Registry
+    API --> Gen
+    Gen --> Registry
+    Gen --> Credits
+    Gen --> Mock
+    Gen --> Fal
+    Fal -. webhook .-> API
+    API -. poll 2s, backoff .-> Fal
+    Gen --> Trans
+    Trans --> Credits
+    Trans --> DB
+    Credits --> DB
+    Pages --> DB
+    Visitor -. direct upload .-> Blob
+    Blob --> DB
+
+    classDef store fill:#1b0a14,stroke:#8c1f4b,color:#f5f1eb
+    class DB,Blob store
+```
+
+Three rules hold the whole thing together:
+
+1. **`lib/models.ts` is the only place a model is described.** Validation, pricing, form fields and provider ids all come from one entry, so adding a model is a single edit.
+2. **`lib/generate.ts` is the only path to a provider.** Safety check → capacity guards → charge → submit → refund-on-failure exists once. The composer, Effects and Cinema all go through it.
+3. **`transition()` is the only way a job changes status.** Assets are saved once, credits come back exactly once, whichever of the poller, the webhook, the cancel route or the stuck-job sweep gets there first.
+
+## What I built, stubbed and cut
+
+**Built**
+
+| Area           | What is real                                                                                                                 |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Guest accounts | Signed httpOnly cookie from edge middleware; the row and its starter credits are created on the first render that needs them |
+| Credit ledger  | Append-only; balance is always `SUM(delta)`. Row-lock on charge, idempotency keys throughout, refunds exactly once           |
+| Model registry | Four visible models + one Cinema-only, each with a zod schema, a price function and capability flags                         |
+| Async jobs     | Queue submit, 2s polling with backoff, ED25519-verified webhook, cancel, stuck-job sweep                                     |
+| Image + Video  | Schema-driven composer, live cost, staged status copy, elapsed timer, rehydration after a refresh                            |
+| Effects        | 8 one-photo presets as `presets` rows, compiled prompts, "How this was made"                                                 |
+| Cinema         | Data-driven prompt compiler (5 cameras, 6 lenses, 5 focal lengths, 3 apertures, 10 moves), 5-step panel, saved sequences     |
+| Library        | Filters, infinite scroll, delete, download, publish, Recreate                                                                |
+| Explore        | Public feed with filters, infinite scroll, detail modal, Recreate, seed fallback                                             |
+| Characters     | 3–10 stored reference photos, attached per model with an honest capacity notice                                              |
+| Credits UI     | Cost before every submit, low/empty states, daily claim, demo plans                                                          |
+| Operations     | `/api/health`, `/status`, global daily spend cap, per-IP and per-user limits                                                 |
+
+**Stubbed, on purpose**
+
+- **Characters are stored references, not training.** AGENTS.md puts training out of scope. Calling a folder of photos a "trained character" would misdescribe what the product does, so the UI says plainly that nothing is trained.
+- **Billing is a demo.** `/pricing` writes a `purchase` row to the same ledger renders are charged against. No payment provider is connected, there is no card form, and the page says so.
+
+**Cut, and why**
+
+- **Agents, canvas, audio/lipsync, plugins, enterprise, mobile app** — out of scope in AGENTS.md. `generate_audio` is pinned to `false` in the registry rather than exposed.
+- **Sign-in (Clerk).** It was last on the list and gated on everything above being done. It needs credentials I do not have, so I could have written the integration and never run it once — and unverifiable auth sitting in front of the one flow that must work logged-out is the wrong trade. The schema already carries `users.clerk_id` (nullable, unique) and `is_guest`; merging is a claim on the existing guest row, which keeps the ledger, library and sequences intact by construction.
+- **A cron for the stuck-job sweep.** A demo that depends on a scheduler has one more thing that can be quietly not running. The sweep rides on job reads and new generations instead, throttled to one indexed query a minute per instance.
 
 ## Run it
 
-Requires Node 20+ and pnpm 10+.
+Requires Node 20+, pnpm 10+, and Postgres. `ffmpeg` and `rsvg-convert` are only needed to regenerate the seed set.
 
 ```bash
 pnpm install
-cp .env.example .env.local   # defaults are fine for local dev
-pnpm dev                     # http://localhost:3000
+cp .env.example .env.local        # defaults are fine for local dev
+
+# point DATABASE_URL at any Postgres, then:
+pnpm db:migrate                   # create the schema
+pnpm db:seed                      # load the 8 effect presets
+
+pnpm dev                          # http://localhost:3000
 ```
 
-`PROVIDER=mock` is the default: generation returns sample outputs after a fake delay, so local development costs nothing. Set `PROVIDER=fal` plus `FAL_KEY` to hit the real provider.
+That is the whole setup. **`PROVIDER=mock` is the default and costs nothing**: generation returns Kinora's own sample media after a realistic delay, and every model in the registry is supported — a test asserts it. Three directives in a prompt drive the paths that are otherwise hard to reach:
+
+| In a prompt | What happens                                       |
+| ----------- | -------------------------------------------------- |
+| `[[fail]]`  | The job fails and refunds                          |
+| `[[nsfw]]`  | The provider "refuses" it and refunds              |
+| `[[slow]]`  | A 20-second render, for testing cancel and refresh |
+
+Set `PROVIDER=fal` and `FAL_KEY` to hit the real provider. Nothing else changes.
+
+```bash
+pnpm typecheck && pnpm lint && pnpm test && pnpm build
+```
 
 ## Database
 
@@ -69,6 +174,31 @@ invents a result to cover for being out of capacity.
 With `PROVIDER=mock`, prompt directives drive the paths that are otherwise hard
 to reach: `[[fail]]` fails the job, `[[nsfw]]` gets it refused, `[[slow]]` takes
 20 seconds. All three refund.
+
+## Reliability and cost safety
+
+This is a public demo with a real provider bill behind it, so the failure modes
+that matter are the expensive ones.
+
+- **Every provider call has a deadline.** Reads are retried with backoff; submit
+  never is, because a request that reached fal before the connection dropped
+  would be queued twice — a render nobody asked for and a bill nobody agreed to.
+- **An unreachable provider is not a failed job.** `status()` distinguishes "fal
+  refused this" from "we could not ask", and only the first costs the user their
+  render. The second leaves the job alone.
+- **Jobs stuck past 15 minutes are failed and refunded** by a sweep that runs
+  opportunistically on job reads and new generations, throttled to once a minute
+  per instance. No cron to forget to configure.
+- **The webhook is idempotent**: signature verified, terminal jobs acknowledged
+  and ignored, and it re-reads from the provider rather than trusting the body,
+  so it and the poller cannot disagree about what was produced.
+- **Three limits, all server-side**: 2 renders at once per visitor, 8 new guests
+  per network per day, and a global `DAILY_CREDIT_CAP`. On the cap, generation
+  returns a clear "demo capacity reached" — never a fake result.
+
+`GET /api/health` reports database reachability, provider, today's spend against
+the cap and the stuck-job count, and says nothing about any user, so it is safe
+to leave open. [`/status`](/status) is the same thing for humans.
 
 ## Effects
 
@@ -176,6 +306,7 @@ render that needs them. `users.clerk_id` is reserved for real accounts later.
 | `pnpm lint`      | ESLint (Next config + Prettier) |
 | `pnpm format`    | Prettier write                  |
 | `pnpm db:seed`   | Load the effect presets         |
+| `pnpm seed:demo` | Render the Explore seed set     |
 
 Run `pnpm typecheck && pnpm lint && pnpm build` before every commit.
 
@@ -192,27 +323,68 @@ Run `pnpm typecheck && pnpm lint && pnpm build` before every commit.
 | `/characters`     | 3–10 stored reference photos under a name     |
 | `/library`        | Your renders (loading / empty / error states) |
 | `/pricing`        | Free / Pro / Max — demo billing, no payments  |
+| `/status`         | Today's spend against the cap, limits, health |
 
 ## Structure
 
 ```
 src/
-  app/          routes, layout, error + not-found boundaries
-  components/   app shell + shared UI (MediaCard, EmptyState, ErrorState)
-  components/ui shadcn primitives (button, badge, skeleton, separator)
-  lib/          utils, nav, placeholder feed data
+  app/            routes, API handlers, layout, loading/error/not-found
+  components/     app shell, studio, effects, cinema, explore, characters, credits
+  components/ui   shadcn primitives (button, badge, dialog, skeleton, toast…)
+  data/           cinema.json — the director's panel catalogue
+  db/             Drizzle schema and the dual-driver connection
+  lib/            models, generate, jobs, credits, guards, providers, compilers
+  hooks/          job queue polling, tab-title alerts
+scripts/          seed-presets.ts (effects), seed-demo.ts (Explore seed set)
+tests/            vitest — pure logic and a real Postgres
+drizzle/          generated migrations
 ```
-
-Placeholder tiles are rendered from seeded CSS gradients — no third-party media. They are replaced by real outputs once the jobs pipeline lands.
 
 ## Environment
 
-See [.env.example](.env.example). Never commit `.env*` files.
+Copy [.env.example](.env.example) to `.env.local`. Never commit `.env*` files.
+
+| Variable                | Required   | What it does                                                                                                                                                                                     |
+| ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`          | yes        | Postgres connection string. A `neon.tech` host uses the WebSocket driver (the credit ledger needs real transactions); anything else uses node-postgres, so a local server or CI works unchanged. |
+| `SESSION_SECRET`        | yes        | Signs the guest session cookie. `openssl rand -base64 32`.                                                                                                                                       |
+| `PROVIDER`              | no         | `mock` (default) or `fal`. Mock costs nothing and supports every model.                                                                                                                          |
+| `FAL_KEY`               | with `fal` | fal.ai credentials. Unset means mock, so a missing key never spends money.                                                                                                                       |
+| `NEXT_PUBLIC_APP_URL`   | production | Absolute base URL. Also decides whether fal gets a webhook — localhost cannot receive one, so development just polls.                                                                            |
+| `BLOB_READ_WRITE_TOKEN` | no         | Vercel Blob uploads. Without it, upload fields degrade to "paste an image URL instead" with a clear message.                                                                                     |
+| `DAILY_CREDIT_CAP`      | no         | Global ceiling on credits the demo may spend per UTC day. Defaults to 5000.                                                                                                                      |
+
+## Seed set
+
+Explore is a community feed, and an empty community feed reads as broken rather
+than new. [`scripts/seed-demo.ts`](scripts/seed-demo.ts) renders ~20 curated
+prompts once, transcodes them into `public/seed/` (webp stills, clips capped at
+6 seconds and 3MB) and writes [`src/lib/seed.ts`](src/lib/seed.ts). Those tiles
+pad the grid until there are eight real public renders, labelled **Sample** and
+never counted as anyone's work.
+
+```bash
+PROVIDER=mock pnpm seed:demo   # free, Kinora's own sample media
+PROVIDER=fal  pnpm seed:demo   # real renders, real money, run once
+```
+
+The output is committed, so the deployed site never depends on this having run.
 
 ## Deploy
 
-Vercel, importing this repo. Build command `pnpm build`, output handled by the Next.js preset. Set the environment variables from `.env.example` in the Vercel project (start with `PROVIDER=mock`).
+Vercel, importing this repo. Build command `pnpm build`; the Next.js preset
+handles the rest.
 
-After the first deploy, point `DATABASE_URL` at the Neon branch and run
-`pnpm db:migrate && pnpm db:seed` against it once. Without the seed the app works
-but `/effects` is empty.
+1. Set the environment variables from the table above. `DATABASE_URL` and
+   `SESSION_SECRET` are the only two that are not optional. Start with
+   `PROVIDER=mock`.
+2. Run `pnpm db:migrate && pnpm db:seed` against the production database once.
+   Without the seed the app works but `/effects` is empty.
+3. Open `/api/health` — it should report `ok: true` and a reachable database.
+4. Switch `PROVIDER=fal` and add `FAL_KEY` when you want real renders. Set
+   `NEXT_PUBLIC_APP_URL` to the https origin so fal gets a webhook instead of
+   being polled.
+
+Check the deployment in a logged-out incognito window: Explore should render,
+the credit pill should show a number, and a render should complete.

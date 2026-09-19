@@ -6,7 +6,7 @@ import { getDb } from "@/db";
 import { jobs, type Job } from "@/db/schema";
 import { charge, getBalance } from "@/lib/credits";
 import { assertCanGenerate } from "@/lib/guards";
-import { transition } from "@/lib/jobs";
+import { sweepOpportunistically, transition } from "@/lib/jobs";
 import type { AnyModel } from "@/lib/models";
 import { getProvider, providerName } from "@/lib/providers";
 import { checkPrompt } from "@/lib/safety";
@@ -41,12 +41,16 @@ export async function runGeneration(args: {
   const verdict = checkPrompt(prompt);
   if (!verdict.ok) throw new PromptRejectedError(verdict.reason);
 
-  // 2. Capacity guards.
+  // 2. Clear out anything abandoned before counting what is active, so a job
+  //    that died an hour ago cannot keep someone under their concurrency limit.
+  await sweepOpportunistically();
+
+  // 3. Capacity guards.
   await assertCanGenerate({ userId, cost: credits, ipHash: args.ipHash });
 
   const provider = getProvider();
 
-  // 3. Create the job, then charge it. The job id is the idempotency key.
+  // 4. Create the job, then charge it. The job id is the idempotency key.
   const [job] = await getDb()
     .insert(jobs)
     .values({
@@ -64,7 +68,7 @@ export async function runGeneration(args: {
 
   await charge({ userId, jobId: job.id, cost: credits, note: model.label });
 
-  // 4. Submit. If the provider refuses, the job fails through the same
+  // 5. Submit. If the provider refuses, the job fails through the same
   //    transition every other failure uses, which is what refunds it.
   try {
     const { providerRequestId } = await provider.submit({

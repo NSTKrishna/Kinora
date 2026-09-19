@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
-import { getJob, getJobAssets, isActive } from "@/lib/jobs";
+import { getJob, getJobAssets, isActive, sweepOpportunistically } from "@/lib/jobs";
 import { getModel } from "@/lib/models";
 import { getProvider } from "@/lib/providers";
 import { apiError, isUuid, toResponse } from "@/lib/api";
@@ -19,6 +19,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const user = await getCurrentUser();
     if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);
+
+    // The poller is the busiest path in the app, which makes it the cheapest
+    // place to notice that something else has been stuck for a quarter of an
+    // hour. Throttled to once a minute per instance.
+    await sweepOpportunistically();
 
     let job = await getJob(id);
     if (!job || job.userId !== user.id) {

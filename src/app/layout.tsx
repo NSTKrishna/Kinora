@@ -10,19 +10,33 @@ import { LOW_BALANCE } from "@/lib/pricing";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
+const DESCRIPTION =
+  "Kinora is a creative studio for AI images and video. Explore what others made, generate your own with one-tap effects or a full director's panel, and remix anything. No account needed.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: {
     default: "Kinora — a studio for generated motion",
     template: "%s · Kinora",
   },
-  description:
-    "Kinora is a creative studio for AI images and video. Explore what others made, generate your own, remix anything.",
+  description: DESCRIPTION,
+  applicationName: "Kinora",
+  keywords: ["AI video", "AI images", "generative video", "image to video", "Kinora"],
   openGraph: {
     title: "Kinora — a studio for generated motion",
-    description: "Explore, generate and remix AI images and video.",
+    description: DESCRIPTION,
     siteName: "Kinora",
     type: "website",
+    locale: "en",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Kinora" }],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Kinora — a studio for generated motion",
+    description: DESCRIPTION,
+    images: ["/opengraph-image"],
+  },
+  robots: { index: true, follow: true },
 };
 
 export const viewport: Viewport = {
@@ -40,6 +54,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className="dark">
       <body className={`${inter.variable} font-sans`}>
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
         <div className="flex min-h-dvh flex-col">
           <SiteHeader
             credits={credits}
@@ -47,7 +64,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             dailyAmount={DAILY_CREDITS}
             lowAt={LOW_BALANCE}
           />
-          <main className="flex-1">{children}</main>
+          <main id="main" className="flex-1">
+            {children}
+          </main>
           <SiteFooter />
         </div>
       </body>
