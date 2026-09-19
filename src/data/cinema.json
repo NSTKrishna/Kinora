@@ -1,0 +1,263 @@
+{
+  "$comment": "The director's panel catalogue. Fragments are prompt text, notes are UI subtitles. Camera and lens options describe the look of a medium rather than naming a manufacturer's product — Kinora ships its own identity, and a description steers a model better than a brand name does.",
+  "cameras": [
+    {
+      "id": "large-format-digital",
+      "label": "Large Format Digital",
+      "note": "Clean latitude, natural separation",
+      "fragment": "Captured on a large-format digital cinema sensor: clean highlight roll-off, wide latitude, and natural separation between the subject and the background."
+    },
+    {
+      "id": "super-16",
+      "label": "Super 16 Film",
+      "note": "Coarse grain, warm mids",
+      "fragment": "Shot on Super 16 film: pronounced grain, gentle resolution falloff, warm midtones and slightly soft shadows."
+    },
+    {
+      "id": "35mm-film",
+      "label": "35mm Film",
+      "note": "Fine grain, halation",
+      "fragment": "Shot on 35mm motion picture film: fine grain, rich latitude, halation blooming around the brightest highlights."
+    },
+    {
+      "id": "video-camcorder",
+      "label": "Video Camcorder",
+      "note": "Interlaced, smeared, dated",
+      "fragment": "Recorded on a consumer video camcorder: interlaced softness, slight motion smear, crushed blacks and a dated broadcast look."
+    },
+    {
+      "id": "full-frame-digital",
+      "label": "Full-Frame Digital",
+      "note": "Neutral, sharp, modern",
+      "fragment": "Captured on a full-frame mirrorless digital camera: neutral colour, high acuity, modern clean contrast."
+    }
+  ],
+  "lenses": [
+    {
+      "id": "spherical-prime",
+      "label": "Spherical Prime",
+      "note": "Neutral geometry, round bokeh",
+      "fragment": "Spherical prime lens: neutral geometry, round bokeh, no distortion at the edges."
+    },
+    {
+      "id": "anamorphic",
+      "label": "Anamorphic",
+      "note": "Oval bokeh, blue streaks",
+      "fragment": "Anamorphic lens: oval bokeh, horizontal blue streak flares, and slight stretching towards the edges of a wide frame."
+    },
+    {
+      "id": "vintage-uncoated",
+      "label": "Vintage Uncoated",
+      "note": "Low contrast, veiling flare",
+      "fragment": "Vintage uncoated glass: low contrast, veiling flare across the frame, highlights that bloom and smear."
+    },
+    {
+      "id": "macro",
+      "label": "Macro",
+      "note": "Close focus, razor-thin plane",
+      "fragment": "Macro lens: extreme close focus, a razor-thin plane of sharpness, the background dissolved completely."
+    },
+    {
+      "id": "tilt-shift",
+      "label": "Tilt-Shift",
+      "note": "Slanted focal plane",
+      "fragment": "Tilt-shift lens: the plane of focus cuts across the frame at an angle, everything outside it falling away into a miniature blur."
+    },
+    {
+      "id": "diffusion",
+      "label": "Diffusion Filter",
+      "note": "Glow, lifted blacks",
+      "fragment": "Heavy diffusion filtration: halation around every highlight, lifted blacks, a soft glow over the whole frame."
+    }
+  ],
+  "focalLengths": [
+    {
+      "id": "14mm",
+      "label": "14mm",
+      "note": "Ultra-wide",
+      "fragment": "14mm ultra-wide: sweeping perspective, exaggerated depth, straight lines bending at the edges."
+    },
+    {
+      "id": "24mm",
+      "label": "24mm",
+      "note": "Wide",
+      "fragment": "24mm wide: generous context around the subject with a mild perspective stretch."
+    },
+    {
+      "id": "35mm",
+      "label": "35mm",
+      "note": "Reportage",
+      "fragment": "35mm: natural reportage framing, close to how the eye reads a room."
+    },
+    {
+      "id": "50mm",
+      "label": "50mm",
+      "note": "Neutral",
+      "fragment": "50mm: neutral perspective, neither compressed nor stretched."
+    },
+    {
+      "id": "85mm",
+      "label": "85mm",
+      "note": "Compressed, intimate",
+      "fragment": "85mm: compressed background, the subject lifted forward, intimate framing."
+    }
+  ],
+  "apertures": [
+    {
+      "id": "f1.4",
+      "label": "f/1.4",
+      "note": "Paper-thin focus",
+      "fragment": "Wide open at f/1.4: a paper-thin plane of focus, the background reduced to soft shapes and round highlights."
+    },
+    {
+      "id": "f2.8",
+      "label": "f/2.8",
+      "note": "Shallow but controlled",
+      "fragment": "At f/2.8: shallow but controlled depth of field, the subject clean and the background legible but soft."
+    },
+    {
+      "id": "f8",
+      "label": "f/8",
+      "note": "Deep focus",
+      "fragment": "Stopped down to f/8: deep focus, foreground and background both sharp, everything in the frame readable."
+    }
+  ],
+  "genres": [
+    {
+      "id": "neo-noir-70s",
+      "label": "1970s Neo-Noir",
+      "note": "Sodium light, rain, deep shadow",
+      "fragment": "1970s neo-noir: sodium streetlight, rain on glass, a muted desaturated palette falling into deep shadow."
+    },
+    {
+      "id": "doc-70s",
+      "label": "1970s Vérité",
+      "note": "Available light, unglamorous",
+      "fragment": "1970s vérité documentary: available light only, slightly underexposed, unglamorous and immediate."
+    },
+    {
+      "id": "sci-fi-80s",
+      "label": "1980s Sci-Fi",
+      "note": "Haze, cyan and magenta",
+      "fragment": "1980s science fiction: hard practical sources, atmospheric haze, cyan and magenta separation, visible beams cutting through smoke."
+    },
+    {
+      "id": "thriller-90s",
+      "label": "1990s Thriller",
+      "note": "Steel palette, hard contrast",
+      "fragment": "1990s thriller: a cool steel palette, hard contrast, clean geometric composition."
+    },
+    {
+      "id": "contemporary-drama",
+      "label": "Contemporary Drama",
+      "note": "Naturalistic, restrained",
+      "fragment": "Contemporary naturalistic drama: a soft neutral grade, motivated light only, restrained and observational."
+    },
+    {
+      "id": "silent-era",
+      "label": "1920s Silent Era",
+      "note": "Orthochromatic black and white",
+      "fragment": "1920s silent era: orthochromatic black and white, heavy vignetting, high-key faces against dark surrounds, a visible flicker in the frame."
+    }
+  ],
+  "lighting": [
+    {
+      "id": "single-practical",
+      "label": "Single Practical",
+      "note": "One source in frame",
+      "fragment": "Lit by a single practical inside the frame — a lamp, a screen, a bulb — with steep falloff into darkness."
+    },
+    {
+      "id": "hard-key-rim",
+      "label": "Hard Key + Rim",
+      "note": "Carved out of the background",
+      "fragment": "A hard key from one side with a bright rim from behind, carving the subject out of the background."
+    },
+    {
+      "id": "soft-overcast",
+      "label": "Soft Overcast",
+      "note": "Flat, shadowless",
+      "fragment": "Soft overcast daylight: flat, shadowless, even across the whole frame."
+    },
+    {
+      "id": "golden-hour",
+      "label": "Golden Hour",
+      "note": "Low raking sun",
+      "fragment": "Low golden-hour sun raking across the frame, long shadows, warm highlights against cool shade."
+    },
+    {
+      "id": "neon-night",
+      "label": "Neon Night",
+      "note": "Saturated pools, wet surfaces",
+      "fragment": "Night, lit entirely by neon signage: saturated pools of colour, wet reflective surfaces, deep unlit gaps between them."
+    },
+    {
+      "id": "firelight",
+      "label": "Firelight",
+      "note": "Warm flicker from below",
+      "fragment": "Firelight as the only source: a warm flickering key from below, shadows moving across the walls."
+    }
+  ],
+  "motions": [
+    {
+      "id": "dolly-in",
+      "label": "Dolly In",
+      "note": "Steady push forward",
+      "fragment": "The camera dollies steadily forward into the scene, the frame closing in without any change of lens."
+    },
+    {
+      "id": "dolly-out",
+      "label": "Dolly Out",
+      "note": "Pull back and reveal",
+      "fragment": "The camera dollies steadily backward, opening the frame and revealing more of the surroundings."
+    },
+    {
+      "id": "orbit",
+      "label": "Orbit",
+      "note": "Level arc around the subject",
+      "fragment": "The camera arcs smoothly around the subject on a level orbit, the background sliding past behind them."
+    },
+    {
+      "id": "crane-up",
+      "label": "Crane Up",
+      "note": "Rise and tilt down",
+      "fragment": "The camera cranes upward and tilts down to hold the subject, rising above the scene."
+    },
+    {
+      "id": "crane-down",
+      "label": "Crane Down",
+      "note": "Descend to eye level",
+      "fragment": "The camera descends on a crane from above and settles at eye level on the subject."
+    },
+    {
+      "id": "handheld",
+      "label": "Handheld",
+      "note": "Breathing, human frame",
+      "fragment": "Handheld camera: small constant corrections, a breathing frame, the operator's weight visible in the movement."
+    },
+    {
+      "id": "fpv-drone",
+      "label": "FPV Drone",
+      "note": "One continuous flight",
+      "fragment": "An FPV drone flies through the scene in one continuous take, banking through gaps and accelerating past obstacles."
+    },
+    {
+      "id": "whip-pan",
+      "label": "Whip Pan",
+      "note": "Fast blurred swing",
+      "fragment": "The camera whips sideways in a fast blurred pan and settles on the other side of the scene."
+    },
+    {
+      "id": "tracking-side",
+      "label": "Tracking Side",
+      "note": "Move with the subject",
+      "fragment": "The camera tracks sideways alongside the subject, holding them at a constant distance as the foreground streaks past."
+    },
+    {
+      "id": "static-lockoff",
+      "label": "Static Lock-Off",
+      "note": "Nothing but the scene moves",
+      "fragment": "The camera is locked off on a tripod and does not move; only what is inside the frame moves."
+    }
+  ]
+}

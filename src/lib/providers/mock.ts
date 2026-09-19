@@ -32,7 +32,7 @@ type MockTicket = {
   count: number;
   kind: "image" | "video";
   aspect: string;
-  size: ImageSizeId;
+  size?: ImageSizeId;
   durationMs?: number;
   preset?: string;
   nonce: string;
@@ -73,7 +73,6 @@ function decode(requestId: string): MockTicket {
     count: 1,
     kind: "image",
     aspect: "1:1",
-    size: "square_hd",
     nonce: "0",
   };
 
@@ -84,6 +83,26 @@ function decode(requestId: string): MockTicket {
   } catch {
     return fallback;
   }
+}
+
+/**
+ * Image models size their output either by a named preset or by an aspect
+ * ratio. The mock has to speak both, because it has to support every model in
+ * the registry — a still that came back square from a 16:9 request would make
+ * the Cinema frame picker lie about what fal would have returned.
+ */
+const ASPECT_SIZES: Record<string, { width: number; height: number }> = {
+  "21:9": { width: 1260, height: 540 },
+  "16:9": { width: 1024, height: 576 },
+  "4:3": { width: 1024, height: 768 },
+  "1:1": { width: 1024, height: 1024 },
+  "3:4": { width: 768, height: 1024 },
+  "9:16": { width: 576, height: 1024 },
+};
+
+function stillSize(ticket: MockTicket): { width: number; height: number } {
+  if (ticket.size && IMAGE_SIZES[ticket.size]) return IMAGE_SIZES[ticket.size];
+  return ASPECT_SIZES[ticket.aspect] ?? IMAGE_SIZES.square_hd;
 }
 
 /** An effect's own example, when the run came from one. */
@@ -109,7 +128,7 @@ export const mockProvider: GenerationProvider = {
         count: Number(params.num_images ?? 1),
         kind: model.kind,
         aspect: String(params.aspect_ratio ?? "1:1"),
-        size: (params.image_size as ImageSizeId) ?? "square_hd",
+        size: params.image_size as ImageSizeId | undefined,
         durationMs: duration ? duration * 1000 : undefined,
         preset: presetSlug ?? undefined,
         nonce: Math.random().toString(36).slice(2, 10),
@@ -152,7 +171,7 @@ export const mockProvider: GenerationProvider = {
       };
     }
 
-    const { width, height } = IMAGE_SIZES[ticket.size] ?? IMAGE_SIZES.square_hd;
+    const { width, height } = stillSize(ticket);
     return {
       assets: Array.from({ length: ticket.count }, (_, index) => ({
         kind: "image" as const,

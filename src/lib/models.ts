@@ -10,6 +10,7 @@ import { z } from "zod";
  * Pricing checked against fal's model pages on 2026-09-20:
  *   fal-ai/flux/schnell                  $0.003 per megapixel (rounded up)
  *   fal-ai/flux-pro/kontext              $0.04  per image
+ *   fal-ai/nano-banana/edit              $0.039 per image (takes several refs)
  *   fal-ai/ltx-2.3/image-to-video/fast   $0.04/s at 1080p, $0.08 at 1440p, $0.16 at 2160p
  *   fal-ai/ltx-2.3/text-to-video/fast    same rates
  *
@@ -68,6 +69,8 @@ export type FieldSpec =
   | { name: string; label: string; type: "seed"; help?: string };
 
 export type ModelCapabilities = {
+  /** Takes more than one reference image at a time. */
+  multiReference?: boolean;
   /** Takes a reference image as input. */
   referenceImages: boolean;
   /** Takes explicit first/last frames (video models). */
@@ -88,6 +91,12 @@ export type ModelDefinition<TSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
   credits: (params: z.infer<TSchema>) => number;
   /** Human note about real provider cost, shown in dev tooling. */
   costNote: string;
+  /**
+   * Kept out of the composer's model list. The Studio builds its form from
+   * `fields`, which has no control for an array of images — this model is
+   * driven by Cinema, which knows how to fill it.
+   */
+  hidden?: boolean;
 };
 
 /* --------------------------------------------------------------- schemas */
@@ -103,6 +112,17 @@ const seedSchema = z.coerce.number().int().min(0).max(2_147_483_647).optional();
 const schnellParams = z.object({
   prompt: promptSchema,
   image_size: imageSizeSchema.default("square_hd"),
+  num_images: z.coerce.number().int().min(1).max(4).default(1),
+  seed: seedSchema,
+});
+
+const nanoBananaParams = z.object({
+  prompt: promptSchema,
+  image_urls: z
+    .array(z.string().url())
+    .min(1, "Add at least one reference image.")
+    .max(4, "Four references is the limit."),
+  aspect_ratio: z.enum(["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]).default("16:9"),
   num_images: z.coerce.number().int().min(1).max(4).default(1),
   seed: seedSchema,
 });
@@ -245,6 +265,23 @@ export const MODELS = {
       { name: "seed", label: "Seed", type: "seed", help: "Leave empty for a new roll." },
     ],
   } satisfies ModelDefinition<typeof kontextParams>,
+  "nano-banana-edit": {
+    id: "nano-banana-edit",
+    label: "Kinora Still Multi-Reference",
+    blurb: "Holds up to four references at once — the same face, prop or place across every frame.",
+    kind: "image",
+    providerModelId: "fal-ai/nano-banana/edit",
+    schema: nanoBananaParams,
+    capabilities: { referenceImages: true, multiReference: true, startEndFrames: false },
+    // $0.039/image, within a rounding error of kontext's $0.04, so it sits on
+    // the same 12-credit step. What it buys is several references, not a
+    // cheaper render.
+    credits: (params) => 12 * params.num_images,
+    costNote: "fal-ai/nano-banana/edit — $0.039 per image (2026-09-20)",
+    hidden: true,
+    fields: [],
+  } satisfies ModelDefinition<typeof nanoBananaParams>,
+
   "ltx-i2v": {
     id: "ltx-i2v",
     label: "Kinora Motion",
@@ -317,8 +354,14 @@ export function getModel(id: string): AnyModel | undefined {
   return (MODELS as Record<string, AnyModel>)[id];
 }
 
+/** Reachable only by the flow that owns it, never by the composer or an API caller. */
+export function isHidden(model: AnyModel): boolean {
+  return "hidden" in model && model.hidden === true;
+}
+
+/** What the composer offers. */
 export function modelsByKind(kind: "image" | "video"): AnyModel[] {
-  return Object.values(MODELS).filter((model) => model.kind === kind);
+  return Object.values(MODELS).filter((model) => model.kind === kind && !isHidden(model));
 }
 
 /** Validate raw client input and price it. Never trust the client's number. */

@@ -35,6 +35,7 @@ export const ledgerKind = pgEnum("ledger_kind", [
 ]);
 export const assetKind = pgEnum("asset_kind", ["image", "video", "upload"]);
 export const presetKind = pgEnum("preset_kind", ["effect", "camera"]);
+export const cinemaStep = pgEnum("cinema_step", ["scene", "rig", "frames", "motion", "result"]);
 
 /** Statuses that still need work from the queue. */
 export const ACTIVE_JOB_STATUSES = ["queued", "running"] as const;
@@ -171,6 +172,38 @@ export const presets = pgTable("presets", {
   sort: integer("sort").notNull().default(0),
 });
 
+/* -------------------------------------------------------- cinema projects */
+
+/**
+ * One director's-panel sequence, saved as you go.
+ *
+ * The stepper keeps nothing in the tab: the panel state, which step you are on,
+ * the frames job, the anchor you picked and the clip all live here, so a
+ * refresh — or the same account on another device — resumes exactly where it
+ * stopped. `spec` is a draft and may be incomplete; it is validated against the
+ * runnable schema only when something is about to be rendered.
+ */
+export const cinemaProjects = pgTable(
+  "cinema_projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default("Untitled sequence"),
+    step: cinemaStep("step").notNull().default("scene"),
+    spec: jsonb("spec")
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    framesJobId: uuid("frames_job_id").references(() => jobs.id, { onDelete: "set null" }),
+    anchorAssetId: uuid("anchor_asset_id").references(() => assets.id, { onDelete: "set null" }),
+    videoJobId: uuid("video_job_id").references(() => jobs.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("cinema_projects_user_updated_idx").on(table.userId, table.updatedAt.desc())],
+);
+
 /* ------------------------------------------------------------- characters */
 
 export const characters = pgTable(
@@ -207,4 +240,6 @@ export type User = typeof users.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Asset = typeof assets.$inferSelect;
 export type Preset = typeof presets.$inferSelect;
+export type CinemaProject = typeof cinemaProjects.$inferSelect;
+export type Character = typeof characters.$inferSelect;
 export type LedgerEntry = typeof creditLedger.$inferSelect;

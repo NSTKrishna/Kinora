@@ -87,6 +87,41 @@ Example loops in `public/mock/effects/` were generated here with ffmpeg. They ar
 reference motion, not renders of the effect itself; with `PROVIDER=mock` a run
 returns its own effect's loop so the demo stays coherent.
 
+## Cinema
+
+A director's panel in five steps: Scene → Rig → Frames → pick the anchor →
+Motion → Result.
+
+[src/lib/cinema.ts](src/lib/cinema.ts) is a pure compiler over
+[src/data/cinema.json](src/data/cinema.json) — 5 cameras, 6 lenses, 5 focal
+lengths, 3 apertures, 6 genres, 6 lighting setups and 10 camera moves, each
+carrying the prompt fragment it contributes. Adding a lens is a data edit. The
+frame prompt takes the whole rig, because the still is where the look is fixed;
+the motion prompt leads with the move and drops aperture and lighting, which
+the anchor frame has already decided. `pnpm test` covers it, including that the
+compiled prompt cannot outgrow what the model accepts — the scene cap is derived
+from the catalogue rather than guessed.
+
+Camera and lens options describe the look of a medium (grain, latitude, flare,
+bokeh shape) rather than naming a manufacturer's product.
+
+Frames are four widescreen candidates from one job. With no references that is
+the cheap four-step model (4 credits); attach up to four reference images, or a
+saved Character, and it switches to the multi-reference model, which costs what
+it costs (48 credits for four). The panel shows the live price either way.
+
+Every step is written to `cinema_projects` as you go — panel state, the frames
+job, the anchor you picked and the clip. `/cinema` resumes the most recent
+sequence, `?p=<id>` opens a specific one and `?new=1` starts a blank panel. The
+saved step is a high-water mark, so stepping back to re-read the rig never
+loses four rendered frames. `POST /api/cinema/[id]/render` takes a stage and
+nothing else: the scene, rig, model, prompt and price are all recompiled from
+the saved row.
+
+Characters are reference images under a name — no training, per the brief. They
+exist so a sequence can be pointed at the same person again without hunting
+through the library.
+
 ## Sessions
 
 Guest-first. Middleware issues a signed, httpOnly cookie on the first request;
@@ -116,7 +151,7 @@ Run `pnpm typecheck && pnpm lint && pnpm build` before every commit.
 | `/video`          | Video composer + recent renders               |
 | `/effects`        | Eight one-photo effects, filtered by category |
 | `/effects/[slug]` | Example, photo slot, inline job, result       |
-| `/cinema`         | Shot-list sequence builder                    |
+| `/cinema`         | Director's panel: scene, rig, frames, motion  |
 | `/library`        | Your renders (loading / empty / error states) |
 | `/pricing`        | Credit plans (demo billing, no payments)      |
 

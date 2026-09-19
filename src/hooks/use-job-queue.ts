@@ -148,6 +148,16 @@ export function useJobQueue(
     [post],
   );
 
+  /**
+   * Hand the queue a new set of jobs to watch. Cinema owns exactly two — the
+   * frames job and the clip — and swaps them as a sequence progresses, rather
+   * than accumulating a list the way the composer does.
+   */
+  const replace = React.useCallback((next: QueuedJob[]) => {
+    delayRef.current = POLL_START_MS;
+    setJobs(next);
+  }, []);
+
   const cancel = React.useCallback(
     async (id: string) => {
       try {
@@ -164,5 +174,5 @@ export function useJobQueue(
     [applyJob],
   );
 
-  return { jobs, balance, submit, submitEffect, cancel };
+  return { jobs, balance, setBalance, submit, submitEffect, replace, cancel };
 }
