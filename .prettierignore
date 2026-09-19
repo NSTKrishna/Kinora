@@ -1,3 +1,6 @@
 .next
 node_modules
 pnpm-lock.yaml
+
+# drizzle-kit owns these; reformatting generated migration metadata is noise.
+drizzle

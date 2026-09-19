@@ -1,15 +1,25 @@
 import Link from "next/link";
-import { ArrowRight, Image as ImageIcon, Clapperboard } from "lucide-react";
+import { ArrowRight, Image as ImageIcon, Clapperboard, Wand2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MediaCard } from "@/components/media-card";
+import { EffectCard } from "@/components/effects/effect-card";
+import { isDatabaseConfigured } from "@/db";
+import { getEffects } from "@/lib/presets";
+import type { EffectView } from "@/lib/presets";
 import { FEED_ITEMS, posterStyle } from "@/lib/placeholder";
 
 const FILTERS = ["All", "Video", "Image", "Effects", "Cinema"];
 
-export default function ExplorePage() {
+export default async function ExplorePage() {
   const hero = FEED_ITEMS[0];
+
+  // The rail is a bonus on the landing page, never a reason it fails to render.
+  let effects: EffectView[] = [];
+  if (isDatabaseConfigured()) {
+    effects = await getEffects().catch(() => []);
+  }
 
   return (
     <div className="pb-4">
@@ -33,6 +43,12 @@ export default function ExplorePage() {
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button asChild size="lg">
+              <Link href="/effects">
+                <Wand2 />
+                Try an effect
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
               <Link href="/video">
                 <Clapperboard />
                 Generate a video
@@ -46,10 +62,44 @@ export default function ExplorePage() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            No account needed to start — you get 40 credits as a guest.
+            No account needed to start — you get 30 credits as a guest.
           </p>
         </div>
       </section>
+
+      {/* Effects rail — the shortest path from landing to a finished clip. */}
+      {effects.length ? (
+        <section className="container pt-10">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="eyebrow">Effects</p>
+              <h2 className="mt-1 text-xl font-medium">One photo, one tap</h2>
+              <p className="mt-1 max-w-lg text-sm text-muted-foreground">
+                The camera move, the lighting and the model are already decided. Add a photo and it
+                renders.
+              </p>
+            </div>
+            <Button asChild variant="ghost" className="text-muted-foreground">
+              <Link href="/effects">
+                All effects
+                <ArrowRight />
+              </Link>
+            </Button>
+          </div>
+
+          {/* A rail, not a grid: it scrolls on a phone and never wraps to a
+              lonely third row on a laptop. */}
+          <div className="no-scrollbar -mx-4 mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+            {effects.slice(0, 6).map((effect) => (
+              <EffectCard
+                key={effect.slug}
+                effect={effect}
+                className="w-[78vw] shrink-0 snap-start sm:w-[320px]"
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/* Explore feed */}
       <section className="container pt-10">

@@ -28,9 +28,14 @@ server, CI) works too — the driver is picked from `DATABASE_URL`.
 ```bash
 pnpm db:generate   # write a migration from schema changes
 pnpm db:migrate    # apply migrations
+pnpm db:seed       # load the effect presets (idempotent)
 pnpm db:studio     # browse the data
-pnpm test          # credit ledger suite (needs DATABASE_URL)
+pnpm test          # credit ledger + jobs + effects suites (needs DATABASE_URL)
 ```
+
+`pnpm db:seed` is required once per environment, including production — `/effects`
+reads the `presets` table, and an unseeded database shows an empty state rather
+than a broken page.
 
 Balances are never stored. `credit_ledger` is append-only and the balance is
 `SUM(delta)`, so the ledger and the number on screen cannot drift apart. Every write
@@ -65,6 +70,23 @@ With `PROVIDER=mock`, prompt directives drive the paths that are otherwise hard
 to reach: `[[fail]]` fails the job, `[[nsfw]]` gets it refused, `[[slow]]` takes
 20 seconds. All three refund.
 
+## Effects
+
+An effect is a `presets` row (`kind='effect'`): a title, a category, a model, a
+prompt template, fixed params and one required photo slot. The definitions live in
+[src/lib/effects.ts](src/lib/effects.ts) so they are reviewable in a diff, and
+`pnpm db:seed` upserts them into the table the app actually reads.
+
+`POST /api/generate` accepts two shapes. The composer sends a model and its
+params; an effect sends `{ presetSlug, imageUrl, extra? }` and nothing else is
+read — the model, the params, the prompt and the price all come off the preset
+row, so an effect cannot be steered or underpaid from the client. The compiled
+prompt is stored on the job and shown in the "How this was made" drawer.
+
+Example loops in `public/mock/effects/` were generated here with ffmpeg. They are
+reference motion, not renders of the effect itself; with `PROVIDER=mock` a run
+returns its own effect's loop so the demo stays coherent.
+
 ## Sessions
 
 Guest-first. Middleware issues a signed, httpOnly cookie on the first request;
@@ -81,20 +103,22 @@ render that needs them. `users.clerk_id` is reserved for real accounts later.
 | `pnpm typecheck` | `tsc --noEmit`                  |
 | `pnpm lint`      | ESLint (Next config + Prettier) |
 | `pnpm format`    | Prettier write                  |
+| `pnpm db:seed`   | Load the effect presets         |
 
 Run `pnpm typecheck && pnpm lint && pnpm build` before every commit.
 
 ## Routes
 
-| Route      | What's there                                  |
-| ---------- | --------------------------------------------- |
-| `/`        | Hero + masonry Explore feed                   |
-| `/image`   | Image composer + recent renders               |
-| `/video`   | Video composer + recent renders               |
-| `/effects` | One-tap camera moves and grades               |
-| `/cinema`  | Shot-list sequence builder                    |
-| `/library` | Your renders (loading / empty / error states) |
-| `/pricing` | Credit plans (demo billing, no payments)      |
+| Route             | What's there                                  |
+| ----------------- | --------------------------------------------- |
+| `/`               | Hero + masonry Explore feed                   |
+| `/image`          | Image composer + recent renders               |
+| `/video`          | Video composer + recent renders               |
+| `/effects`        | Eight one-photo effects, filtered by category |
+| `/effects/[slug]` | Example, photo slot, inline job, result       |
+| `/cinema`         | Shot-list sequence builder                    |
+| `/library`        | Your renders (loading / empty / error states) |
+| `/pricing`        | Credit plans (demo billing, no payments)      |
 
 ## Structure
 
@@ -115,3 +139,7 @@ See [.env.example](.env.example). Never commit `.env*` files.
 ## Deploy
 
 Vercel, importing this repo. Build command `pnpm build`, output handled by the Next.js preset. Set the environment variables from `.env.example` in the Vercel project (start with `PROVIDER=mock`).
+
+After the first deploy, point `DATABASE_URL` at the Neon branch and run
+`pnpm db:migrate && pnpm db:seed` against it once. Without the seed the app works
+but `/effects` is empty.

@@ -12,16 +12,20 @@ export const metadata: Metadata = { title: "Image" };
 export default async function ImagePage({
   searchParams,
 }: {
-  searchParams: Promise<{ recreate?: string; from?: string }>;
+  searchParams: Promise<{ recreate?: string; from?: string; prompt?: string }>;
 }) {
-  const { recreate, from } = await searchParams;
+  const { recreate, from, prompt } = await searchParams;
 
   const user = await getCurrentUser();
   const balance = user ? await getBalance(user.id) : null;
   const jobs = user ? await getRecentJobs(user.id, "image") : [];
   const modelIds = modelsByKind("image").map((model) => model.id as ModelId);
 
-  const prefill = user ? await buildPrefill(user.id, { recreate, from }) : undefined;
+  const prefill = user
+    ? await buildPrefill(user.id, { recreate, from, prompt })
+    : prompt
+      ? { prompt }
+      : undefined;
 
   return (
     <div className="container py-8">
@@ -45,7 +49,7 @@ export default async function ImagePage({
 /** Recreate a past job, or start from an existing image as a reference. */
 async function buildPrefill(
   userId: string,
-  params: { recreate?: string; from?: string },
+  params: { recreate?: string; from?: string; prompt?: string },
 ): Promise<StudioPrefill | undefined> {
   if (params.recreate) {
     const job = await getOwnJob(userId, params.recreate);
@@ -73,6 +77,10 @@ async function buildPrefill(
       values: { image_url: asset.url },
     };
   }
+
+  // `?prompt=` is what Recreate on an Explore card sends: the prompt, nothing
+  // else, so the visitor lands in the composer with something to edit.
+  if (params.prompt) return { prompt: params.prompt.slice(0, 2000) };
 
   return undefined;
 }

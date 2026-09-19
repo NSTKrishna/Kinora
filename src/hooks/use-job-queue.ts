@@ -109,33 +109,43 @@ export function useJobQueue(
     };
   }, [activeKey, applyJob]);
 
-  const submit = React.useCallback(
-    async (modelId: string, input: Record<string, unknown>): Promise<SubmitResult> => {
-      try {
-        const response = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ modelId, input }),
-        });
-        const data = await response.json();
+  /** One code path for both shapes /api/generate accepts. */
+  const post = React.useCallback(async (body: Record<string, unknown>): Promise<SubmitResult> => {
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
 
-        if (!response.ok) {
-          return {
-            ok: false,
-            code: data?.error?.code ?? "server_error",
-            message: data?.error?.message ?? "Something went wrong.",
-          };
-        }
-
-        delayRef.current = POLL_START_MS;
-        setJobs((current) => [{ ...(data.job as JobView), assets: [] }, ...current]);
-        if (typeof data.balance === "number") setBalance(data.balance);
-        return { ok: true };
-      } catch {
-        return { ok: false, code: "network", message: "Could not reach the server." };
+      if (!response.ok) {
+        return {
+          ok: false,
+          code: data?.error?.code ?? "server_error",
+          message: data?.error?.message ?? "Something went wrong.",
+        };
       }
-    },
-    [],
+
+      delayRef.current = POLL_START_MS;
+      setJobs((current) => [{ ...(data.job as JobView), assets: [] }, ...current]);
+      if (typeof data.balance === "number") setBalance(data.balance);
+      return { ok: true };
+    } catch {
+      return { ok: false, code: "network", message: "Could not reach the server." };
+    }
+  }, []);
+
+  const submit = React.useCallback(
+    (modelId: string, input: Record<string, unknown>) => post({ modelId, input }),
+    [post],
+  );
+
+  /** An effect run: the server owns the model, the params and the prompt. */
+  const submitEffect = React.useCallback(
+    (presetSlug: string, imageUrl: string, extra?: string) =>
+      post({ presetSlug, imageUrl, extra: extra?.trim() || undefined }),
+    [post],
   );
 
   const cancel = React.useCallback(
@@ -154,5 +164,5 @@ export function useJobQueue(
     [applyJob],
   );
 
-  return { jobs, balance, submit, cancel };
+  return { jobs, balance, submit, submitEffect, cancel };
 }

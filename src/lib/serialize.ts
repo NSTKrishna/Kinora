@@ -8,6 +8,7 @@ export function serializeJob(job: Job) {
     id: job.id,
     kind: job.kind,
     modelId: job.modelId,
+    presetSlug: job.presetSlug,
     status: job.status,
     prompt: job.compiledPrompt,
     input: job.input as Record<string, unknown>,

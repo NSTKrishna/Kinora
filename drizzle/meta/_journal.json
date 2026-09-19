@@ -15,6 +15,13 @@
       "when": 1789852337217,
       "tag": "0001_add_signup_ip_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789855133786,
+      "tag": "0002_rainy_wallop",
+      "breakpoints": true
     }
   ]
 }

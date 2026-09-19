@@ -16,7 +16,7 @@ import type { QueuedJob } from "@/hooks/use-job-queue";
  */
 const EXPECTED_MS: Record<QueuedJob["kind"], number> = { image: 8_000, video: 60_000 };
 
-function useElapsed(since: string, active: boolean) {
+export function useElapsed(since: string, active: boolean) {
   const [now, setNow] = React.useState(() => Date.now());
 
   React.useEffect(() => {
@@ -28,11 +28,33 @@ function useElapsed(since: string, active: boolean) {
   return Math.max(0, now - new Date(since).getTime());
 }
 
-function formatElapsed(ms: number) {
+export function formatElapsed(ms: number) {
   const total = Math.floor(ms / 1000);
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
   return minutes ? `${minutes}m ${String(seconds).padStart(2, "0")}s` : `${seconds}s`;
+}
+
+/**
+ * Stage copy, in the user's terms rather than the provider's. Shared with the
+ * effect runner so one job never reads "Generating" in one place and
+ * "Rendering" in another.
+ */
+export function stageLabel(job: { status: string; kind: QueuedJob["kind"] }, elapsed: number) {
+  switch (job.status) {
+    case "queued":
+      return "In queue";
+    case "running":
+      return elapsed > EXPECTED_MS[job.kind] * 0.7 ? "Finishing" : "Generating";
+    case "completed":
+      return "Done";
+    case "nsfw":
+      return "Refused";
+    case "canceled":
+      return "Canceled";
+    default:
+      return "Failed";
+  }
 }
 
 export function JobCard({
@@ -54,21 +76,7 @@ export function JobCard({
   const elapsed = useElapsed(job.createdAt, active);
   const failed = job.status === "failed" || job.status === "nsfw" || job.status === "canceled";
 
-  // Stage copy, in the user's terms rather than the provider's.
-  const stage =
-    job.status === "queued"
-      ? "In queue"
-      : job.status === "running"
-        ? elapsed > EXPECTED_MS[job.kind] * 0.7
-          ? "Finishing"
-          : "Generating"
-        : job.status === "completed"
-          ? "Done"
-          : job.status === "nsfw"
-            ? "Refused"
-            : job.status === "canceled"
-              ? "Canceled"
-              : "Failed";
+  const stage = stageLabel(job, elapsed);
 
   const count = job.kind === "video" ? 1 : Number(job.input?.num_images ?? 1);
 

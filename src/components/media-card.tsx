@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Play, Sparkles, Repeat2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { ASPECT_CLASS, posterStyle, type FeedItem } from "@/lib/placeholder";
+import { ASPECT_CLASS, posterStyle, recreateHref, type FeedItem } from "@/lib/placeholder";
 
 type MediaCardProps = {
   item: FeedItem;
@@ -96,15 +97,18 @@ export function MediaCard({ item, src, videoSrc, seed = 0, className }: MediaCar
             <span className="truncate text-micro uppercase tracking-[0.14em] text-white/55">
               {item.author} · {item.model}
             </span>
-            <span
+            <Link
+              href={recreateHref(item)}
               className={cn(
-                "flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-micro font-medium uppercase tracking-[0.12em] text-white",
-                "opacity-0 transition-opacity duration-200 group-focus-within:opacity-100 group-hover:opacity-100",
+                "flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-micro font-medium uppercase tracking-[0.12em] text-white backdrop-blur",
+                "transition-[opacity,background-color] duration-200 hover:bg-white/20",
+                // Always reachable by keyboard; revealed on hover for the mouse.
+                "opacity-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 group-focus-within:opacity-100 group-hover:opacity-100",
               )}
             >
               <Repeat2 className="size-3" />
-              Remix
-            </span>
+              {item.effectSlug ? "Recreate" : "Remix"}
+            </Link>
           </div>
         </div>
       </div>

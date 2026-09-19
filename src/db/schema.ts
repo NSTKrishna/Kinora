@@ -154,6 +154,9 @@ export const presets = pgTable("presets", {
   slug: text("slug").primaryKey(),
   title: text("title").notNull(),
   kind: presetKind("kind").notNull(),
+  /** Chip on /effects. Free text so a new grouping needs no migration. */
+  category: text("category").notNull().default("camera"),
+  description: text("description"),
   modelId: text("model_id").notNull(),
   promptTemplate: text("prompt_template").notNull(),
   defaultParams: jsonb("default_params")

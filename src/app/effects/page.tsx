@@ -4,46 +4,66 @@ import { Wand2 } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { EFFECT_PRESETS, posterStyle } from "@/lib/placeholder";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorState } from "@/components/error-state";
+import { EffectsGrid } from "@/components/effects/effects-grid";
+import { isDatabaseConfigured } from "@/db";
+import { getEffects } from "@/lib/presets";
+import type { EffectView } from "@/lib/presets";
 
-export const metadata: Metadata = { title: "Effects" };
+export const metadata: Metadata = {
+  title: "Effects",
+  description: "One-click effects. Add a photo, get a clip back.",
+};
 
-export default function EffectsPage() {
+export default async function EffectsPage() {
+  let effects: EffectView[] = [];
+  let failed = false;
+
+  if (isDatabaseConfigured()) {
+    try {
+      effects = await getEffects();
+    } catch {
+      failed = true;
+    }
+  } else {
+    failed = true;
+  }
+
   return (
     <div className="container py-8">
       <PageHeader
         eyebrow="Presets"
         title="Effects"
-        description="One-tap camera moves and grades. Pick one, drop in a prompt or an image, and render."
+        description="One photo in, one clip out. Every effect is a fixed recipe — the camera move, the lighting and the model are already decided, so there is one thing left to choose."
         actions={
           <Button asChild variant="outline">
-            <Link href="/video">Open video composer</Link>
+            <Link href="/video">Open the video composer</Link>
           </Button>
         }
       />
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {EFFECT_PRESETS.map((preset, i) => (
-          <Link
-            key={preset.id}
-            href="/video"
-            className="hover:glow-ember group relative isolate overflow-hidden rounded-lg border border-border/70 transition-transform duration-300 hover:-translate-y-0.5"
-          >
-            <div className="aspect-video w-full" style={posterStyle(preset.palette, i * 5)} />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4">
-              <div>
-                <h2 className="text-base font-medium text-white">{preset.name}</h2>
-                <p className="text-xs text-white/60">{preset.note}</p>
-              </div>
-              <span className="flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-micro uppercase tracking-[0.12em] text-white opacity-0 transition-opacity group-hover:opacity-100">
-                <Wand2 className="size-3" />
-                Use
-              </span>
-            </div>
-          </Link>
-        ))}
-      </div>
+      {failed ? (
+        <ErrorState
+          title="Effects are unavailable"
+          description="The preset library could not be reached. The composer still works."
+          action={
+            <Button asChild variant="outline">
+              <Link href="/video">Open the video composer</Link>
+            </Button>
+          }
+          className="mt-8"
+        />
+      ) : effects.length === 0 ? (
+        <EmptyState
+          icon={<Wand2 />}
+          title="No effects yet"
+          description="The preset library is empty. Run `pnpm db:seed` to load them."
+          className="mt-8"
+        />
+      ) : (
+        <EffectsGrid effects={effects} />
+      )}
     </div>
   );
 }

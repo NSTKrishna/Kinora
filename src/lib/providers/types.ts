@@ -27,6 +27,8 @@ export type SubmitArgs = {
   params: Record<string, unknown>;
   /** Our job id — providers echo it back on the webhook query string. */
   jobId: string;
+  /** Set when the run came from an effect preset. Only the mock reads it. */
+  presetSlug?: string | null;
   webhookUrl?: string;
 };
 

@@ -17,6 +17,8 @@ export type FeedItem = {
   /** Seeded gradient stops, in order. */
   palette: [string, string, string];
   durationSeconds?: number;
+  /** When the shot is one of our effects, Recreate opens that effect instead. */
+  effectSlug?: string;
 };
 
 export const ASPECT_CLASS: Record<FeedItem["aspect"], string> = {
@@ -49,6 +51,7 @@ export const FEED_ITEMS: FeedItem[] = [
   },
   {
     id: "f03",
+    effectSlug: "colossus",
     kind: "image",
     prompt: "Brutalist tower at golden hour, long lens compression, haze",
     model: "Kinora Still XL",
@@ -58,6 +61,7 @@ export const FEED_ITEMS: FeedItem[] = [
   },
   {
     id: "f04",
+    effectSlug: "vertigo",
     kind: "video",
     prompt: "Crash zoom onto a chrome helmet, sparks drifting in slow motion",
     model: "Kinora Motion v1",
@@ -77,6 +81,7 @@ export const FEED_ITEMS: FeedItem[] = [
   },
   {
     id: "f06",
+    effectSlug: "bullet-orbit",
     kind: "video",
     prompt: "Orbit around a floating monolith above still water at dusk",
     model: "Kinora Motion v1",
@@ -106,6 +111,7 @@ export const FEED_ITEMS: FeedItem[] = [
   },
   {
     id: "f09",
+    effectSlug: "hero-spin",
     kind: "image",
     prompt: "Editorial still life, glass and steel, hard key with black backdrop",
     model: "Kinora Still XL",
@@ -144,44 +150,35 @@ export const FEED_ITEMS: FeedItem[] = [
   },
 ];
 
-export const EFFECT_PRESETS = [
-  {
-    id: "e1",
-    name: "Crash Zoom",
-    note: "Snap push with motion blur",
-    palette: ["#1b0a14", "#8c1f4b", "#ff7a2f"],
-  },
-  {
-    id: "e2",
-    name: "Dolly Drift",
-    note: "Slow parallax through depth",
-    palette: ["#0b1020", "#2d3f73", "#8fb8ff"],
-  },
-  {
-    id: "e3",
-    name: "Bullet Time",
-    note: "Orbit on a frozen moment",
-    palette: ["#05070a", "#4a5b6b", "#cfd4dd"],
-  },
-  {
-    id: "e4",
-    name: "Ember Grade",
-    note: "Warm highlights, crushed blacks",
-    palette: ["#241405", "#a85b1f", "#ffd9a0"],
-  },
-  {
-    id: "e5",
-    name: "Fog Push",
-    note: "Volumetric light, handheld",
-    palette: ["#060d0b", "#1f4c40", "#7fd8b4"],
-  },
-  {
-    id: "e6",
-    name: "Whip Pan",
-    note: "Lateral smear transition",
-    palette: ["#2b1055", "#7f2b8e", "#ff6a3d"],
-  },
-] as const;
+const POSTER_PALETTES: [string, string, string][] = [
+  ["#1b0a14", "#8c1f4b", "#ff7a2f"],
+  ["#0b1020", "#2d3f73", "#8fb8ff"],
+  ["#241405", "#a85b1f", "#ffd9a0"],
+  ["#060d0b", "#1f4c40", "#7fd8b4"],
+  ["#2b1055", "#7f2b8e", "#ff6a3d"],
+  ["#0a0a0c", "#3a3a45", "#cfd4dd"],
+];
+
+/** A stable palette for anything with a slug, so posters never reshuffle. */
+export function paletteFor(seed: string): [string, string, string] {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return POSTER_PALETTES[hash % POSTER_PALETTES.length];
+}
+
+/**
+ * Where Recreate on an Explore card goes.
+ *
+ * A shot that one of our effects makes opens that effect — one photo and it is
+ * done. Anything else drops the prompt into the matching composer, which is the
+ * honest fallback: the visitor gets a starting point, not a promise we cannot
+ * keep that the render will match.
+ */
+export function recreateHref(item: FeedItem): string {
+  if (item.effectSlug) return `/effects/${item.effectSlug}`;
+  const page = item.kind === "video" ? "/video" : "/image";
+  return `${page}?prompt=${encodeURIComponent(item.prompt)}`;
+}
 
 /** Deterministic CSS background for a seeded gradient poster. */
 export function posterStyle(palette: readonly string[], seed = 0) {

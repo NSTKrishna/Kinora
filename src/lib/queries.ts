@@ -19,11 +19,19 @@ export async function getRecentJobs(
   userId: string,
   kind: "image" | "video",
   limit = 8,
+  /** Effect pages show only their own runs, not the whole video queue. */
+  presetSlug?: string,
 ): Promise<JobWithAssets[]> {
   const rows = await getDb()
     .select()
     .from(jobs)
-    .where(and(eq(jobs.userId, userId), eq(jobs.kind, kind)))
+    .where(
+      and(
+        eq(jobs.userId, userId),
+        eq(jobs.kind, kind),
+        presetSlug ? eq(jobs.presetSlug, presetSlug) : undefined,
+      ),
+    )
     .orderBy(desc(jobs.createdAt))
     .limit(limit);
 

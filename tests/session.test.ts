@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createSessionToken,
-  readSessionToken,
-  sessionCookieOptions,
-} from "@/lib/session";
+import { createSessionToken, readSessionToken, sessionCookieOptions } from "@/lib/session";
 
 const USER = "4d9f7e34-cb25-4969-8b30-c3a1e0ed0d6b";
 

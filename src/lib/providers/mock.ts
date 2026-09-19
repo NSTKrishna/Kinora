@@ -1,6 +1,7 @@
 import type { GenerationProvider, ProviderResult, ProviderStatus, SubmitArgs } from "./types";
 import type { AnyModel } from "@/lib/models";
 import { IMAGE_SIZES, type ImageSizeId } from "@/lib/models";
+import { EFFECTS } from "@/lib/effects";
 
 /**
  * The mock provider. Development and demos cost nothing.
@@ -14,6 +15,9 @@ import { IMAGE_SIZES, type ImageSizeId } from "@/lib/models";
  * Prompts steer it, which is how the failure and safety paths get exercised
  * without burning provider credits:
  *   [[fail]] → the job fails    [[nsfw]] → flagged    [[slow]] → 20s render
+ *
+ * An effect run gets that effect's own example clip back, so the mock demo is
+ * coherent: pick Levitation and a levitation clip is what lands.
  */
 
 const QUEUED_MS = 1_200;
@@ -30,6 +34,7 @@ type MockTicket = {
   aspect: string;
   size: ImageSizeId;
   durationMs?: number;
+  preset?: string;
   nonce: string;
 };
 
@@ -81,6 +86,13 @@ function decode(requestId: string): MockTicket {
   }
 }
 
+/** An effect's own example, when the run came from one. */
+function clipFor(ticket: MockTicket) {
+  const effect = ticket.preset ? EFFECTS.find((entry) => entry.slug === ticket.preset) : undefined;
+  if (effect) return { url: effect.exampleUrl, width: 480, height: 270 };
+  return MOCK_CLIPS[ticket.aspect] ?? MOCK_CLIPS.auto;
+}
+
 function runningFor(mode: MockMode) {
   return mode === "slow" ? SLOW_RUNNING_MS : RUNNING_MS;
 }
@@ -88,7 +100,7 @@ function runningFor(mode: MockMode) {
 export const mockProvider: GenerationProvider = {
   name: "mock",
 
-  async submit({ model, params }: SubmitArgs) {
+  async submit({ model, params, presetSlug }: SubmitArgs) {
     const duration = Number(params.duration ?? 0);
     return {
       providerRequestId: encode({
@@ -99,6 +111,7 @@ export const mockProvider: GenerationProvider = {
         aspect: String(params.aspect_ratio ?? "1:1"),
         size: (params.image_size as ImageSizeId) ?? "square_hd",
         durationMs: duration ? duration * 1000 : undefined,
+        preset: presetSlug ?? undefined,
         nonce: Math.random().toString(36).slice(2, 10),
       }),
     };
@@ -125,7 +138,7 @@ export const mockProvider: GenerationProvider = {
     if (ticket.mode === "nsfw") return { assets: [], flagged: true };
 
     if (ticket.kind === "video") {
-      const clip = MOCK_CLIPS[ticket.aspect] ?? MOCK_CLIPS.auto;
+      const clip = clipFor(ticket);
       return {
         assets: [
           {
