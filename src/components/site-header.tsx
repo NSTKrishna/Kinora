@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { NAV_LINKS } from "@/lib/nav";
 
-export function SiteHeader({ credits = 40 }: { credits?: number }) {
+export function SiteHeader({ credits }: { credits?: number | null }) {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -46,7 +46,7 @@ export function SiteHeader({ credits = 40 }: { credits?: number }) {
             title="Credits remaining"
           >
             <Coins className="size-3.5 text-primary" />
-            <span>{credits}</span>
+            <span>{credits ?? "—"}</span>
             <span className="hidden text-muted-foreground sm:inline">credits</span>
           </Link>
           <Button size="sm" variant="secondary" className="shrink-0">

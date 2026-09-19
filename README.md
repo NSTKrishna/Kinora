@@ -20,6 +20,30 @@ pnpm dev                     # http://localhost:3000
 
 `PROVIDER=mock` is the default: generation returns sample outputs after a fake delay, so local development costs nothing. Set `PROVIDER=fal` plus `FAL_KEY` to hit the real provider.
 
+## Database
+
+Postgres via Drizzle. Neon is the deployment target; any other Postgres URL (a local
+server, CI) works too — the driver is picked from `DATABASE_URL`.
+
+```bash
+pnpm db:generate   # write a migration from schema changes
+pnpm db:migrate    # apply migrations
+pnpm db:studio     # browse the data
+pnpm test          # credit ledger suite (needs DATABASE_URL)
+```
+
+Balances are never stored. `credit_ledger` is append-only and the balance is
+`SUM(delta)`, so the ledger and the number on screen cannot drift apart. Every write
+carries an idempotency key (`job:<id>:charge`, `job:<id>:refund`, `daily:<user>:<date>`),
+and charges take a `SELECT ... FOR UPDATE` lock on the user row so concurrent renders
+cannot overdraw.
+
+## Sessions
+
+Guest-first. Middleware issues a signed, httpOnly cookie on the first request;
+`getCurrentUser()` creates the user row and its 30 starter credits on the first server
+render that needs them. `users.clerk_id` is reserved for real accounts later.
+
 ## Scripts
 
 | Command          | What it does                    |
