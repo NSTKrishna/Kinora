@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { assets } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { apiError, toResponse } from "@/lib/api";
+import { apiError, isUuid, toResponse } from "@/lib/api";
 import { serializeAsset } from "@/lib/serialize";
 
 export const runtime = "nodejs";
@@ -17,6 +17,7 @@ const patchSchema = z.object({ isPublic: z.boolean() });
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    if (!isUuid(id)) return apiError("not_found", "That item does not exist.", 404);
 
     const user = await getCurrentUser();
     if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);
@@ -39,6 +40,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    if (!isUuid(id)) return apiError("not_found", "That item does not exist.", 404);
 
     const user = await getCurrentUser();
     if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);

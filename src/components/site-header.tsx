@@ -2,14 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Coins } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
+import { CreditPill } from "@/components/credits/credit-pill";
 import { NAV_LINKS } from "@/lib/nav";
 
-export function SiteHeader({ credits }: { credits?: number | null }) {
+export function SiteHeader({
+  credits,
+  claimable = false,
+  dailyAmount,
+  lowAt,
+}: {
+  credits?: number | null;
+  claimable?: boolean;
+  dailyAmount: number;
+  lowAt: number;
+}) {
   const pathname = usePathname();
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
@@ -40,16 +49,19 @@ export function SiteHeader({ credits }: { credits?: number | null }) {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <Link
-            href="/pricing"
-            className="flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 px-3 py-1.5 text-xs font-medium tabular-nums transition-colors hover:border-primary/50"
-            title="Credits remaining"
+          <CreditPill
+            credits={credits ?? null}
+            claimable={claimable}
+            dailyAmount={dailyAmount}
+            lowAt={lowAt}
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            className="hidden shrink-0 sm:inline-flex"
+            disabled
+            title="Accounts are not in this build — everything works as a guest"
           >
-            <Coins className="size-3.5 text-primary" />
-            <span>{credits ?? "—"}</span>
-            <span className="hidden text-muted-foreground sm:inline">credits</span>
-          </Link>
-          <Button size="sm" variant="secondary" className="shrink-0">
             Sign in
           </Button>
         </div>

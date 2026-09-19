@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Coins, Film, ImagePlus, Sparkles, TriangleAlert } from "lucide-react";
+import { Coins, Film, ImagePlus, Info, Sparkles, TriangleAlert } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import { ImageField } from "@/components/studio/image-field";
 import { useJobQueue, type QueuedJob } from "@/hooks/use-job-queue";
 import { useTabTitleAlert } from "@/hooks/use-finish-alerts";
 import { MODELS, type AnyModel, type FieldSpec, type ModelId } from "@/lib/models";
+import { attachReferences, referenceCapacity, type CharacterView } from "@/lib/characters";
+import { CreditNotice } from "@/components/credits/credit-notice";
 import type { AssetView } from "@/lib/serialize";
 
 type Values = Record<string, string>;
@@ -23,6 +25,7 @@ export type StudioPrefill = {
   modelId?: ModelId;
   prompt?: string;
   values?: Values;
+  characterId?: string;
 };
 
 function defaultsFor(model: AnyModel): Values {
@@ -60,6 +63,7 @@ export function Studio({
   initialBalance,
   initialJobs,
   prefill,
+  characters = [],
 }: {
   kind: "image" | "video";
   /** Ids only: registry entries hold zod schemas and functions, which cannot
@@ -68,6 +72,7 @@ export function Studio({
   initialBalance: number | null;
   initialJobs: QueuedJob[];
   prefill?: StudioPrefill;
+  characters?: CharacterView[];
 }) {
   const router = useRouter();
   const models = React.useMemo(() => modelIds.map((id) => MODELS[id]), [modelIds]);
@@ -83,6 +88,7 @@ export function Studio({
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
   const [lightboxAsset, setLightboxAsset] = React.useState<AssetView | null>(null);
+  const [characterId, setCharacterId] = React.useState<string | null>(prefill?.characterId ?? null);
 
   const { toasts, push, dismiss } = useToasts();
   const flagTabTitle = useTabTitleAlert();
@@ -111,20 +117,75 @@ export function Studio({
 
   const { jobs, balance, submit, cancel } = useJobQueue(initialBalance, initialJobs, onFinished);
 
+  const character = characters.find((entry) => entry.id === characterId) ?? null;
+
+  /**
+   * What attaching this character to this model actually does.
+   *
+   * Recomputed on every model change, because the answer differs per model and
+   * the user has to see it *before* spending: a model that takes one photo out
+   * of ten, or none at all, must say so rather than quietly render the wrong
+   * thing.
+   */
+  const attachment = character ? attachReferences(model, character.urls) : null;
+
+  const applyCharacter = React.useCallback(
+    (next: CharacterView | null, target: AnyModel, base: Values): Values => {
+      if (!next) return base;
+      const result = attachReferences(target, next.urls);
+      const merged = { ...base };
+      // Visible composer models take a single `image_url`; `image_urls` only
+      // reaches the multi-reference model, which Cinema drives, not this form.
+      for (const [key, value] of Object.entries(result.values)) {
+        if (typeof value === "string") merged[key] = value;
+      }
+      return merged;
+    },
+    [],
+  );
+
   const selectModel = (next: ModelId) => {
     setModelId(next);
-    setValues((current) => ({
-      ...defaultsFor(MODELS[next]),
-      ...pickShared(current, MODELS[next]),
-    }));
+    setValues((current) =>
+      applyCharacter(character, MODELS[next], {
+        ...defaultsFor(MODELS[next]),
+        ...pickShared(current, MODELS[next]),
+      }),
+    );
     setError(null);
+  };
+
+  const selectCharacter = (next: CharacterView | null) => {
+    setCharacterId(next?.id ?? null);
+    setError(null);
+
+    if (!next) {
+      setValues((current) => ({ ...current, image_url: "" }));
+      return;
+    }
+
+    // Jump to a model that can use references rather than leaving the user on
+    // one that cannot — but only if they have not already chosen one that can.
+    const target =
+      referenceCapacity(model) > 0 ? model : models.find((m) => referenceCapacity(m) > 0);
+    if (target && target.id !== modelId) {
+      const nextId = target.id as ModelId;
+      setModelId(nextId);
+      setValues((current) =>
+        applyCharacter(next, MODELS[nextId], {
+          ...defaultsFor(MODELS[nextId]),
+          ...pickShared(current, MODELS[nextId]),
+        }),
+      );
+      return;
+    }
+    setValues((current) => applyCharacter(next, model, current));
   };
 
   // Display only. The server re-validates and re-prices every request.
   const parsed = model.schema.safeParse(toInput(prompt || "placeholder prompt", values));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cost = parsed.success ? model.credits(parsed.data as any) : null;
-  const affordable = balance === null || cost === null || balance >= cost;
 
   const onGenerate = async () => {
     setError(null);
@@ -231,6 +292,62 @@ export function Studio({
             </div>
           ) : null}
 
+          {characters.length ? (
+            <div>
+              <p className="eyebrow">Character</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => selectCharacter(null)}
+                  aria-pressed={characterId === null}
+                  className={cn(
+                    "rounded-full px-2.5 py-1.5 text-xs transition-colors",
+                    characterId === null
+                      ? "bg-secondary text-foreground"
+                      : "border border-border text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  None
+                </button>
+                {characters.map((entry) => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    onClick={() => selectCharacter(entry)}
+                    aria-pressed={entry.id === characterId}
+                    className={cn(
+                      "flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-xs transition-colors",
+                      entry.id === characterId
+                        ? "bg-secondary text-foreground"
+                        : "border border-border text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {entry.urls[0] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={entry.urls[0]}
+                        alt=""
+                        className="size-5 rounded-full object-cover"
+                      />
+                    ) : null}
+                    {entry.name}
+                  </button>
+                ))}
+              </div>
+
+              {attachment?.notice ? (
+                <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <Info className="mt-0.5 size-3.5 shrink-0" />
+                  {attachment.notice}
+                </p>
+              ) : attachment ? (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  {attachment.used} reference{attachment.used === 1 ? "" : "s"} attached.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
           <div>
             <label htmlFor="prompt" className="eyebrow">
               Prompt
@@ -285,11 +402,7 @@ export function Studio({
             </Button>
           </div>
 
-          {!affordable ? (
-            <p className="text-xs text-muted-foreground">
-              That costs more than you have left. Credits refresh daily.
-            </p>
-          ) : null}
+          <CreditNotice balance={balance} cost={cost} />
         </div>
 
         {/* ------------------------------------------------------ results */}

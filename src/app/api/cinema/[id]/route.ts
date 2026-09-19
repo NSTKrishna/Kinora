@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { draftSpecSchema } from "@/lib/cinema";
 import { deleteProject, getProject, toView, updateProject } from "@/lib/cinema-projects";
 import { getOwnAsset } from "@/lib/queries";
-import { apiError, toResponse } from "@/lib/api";
+import { apiError, isUuid, toResponse } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +21,7 @@ const patchSchema = z.object({
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    if (!isUuid(id)) return apiError("not_found", "That sequence does not exist.", 404);
     const user = await getCurrentUser();
     if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);
 
@@ -37,6 +38,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    if (!isUuid(id)) return apiError("not_found", "That sequence does not exist.", 404);
     const user = await getCurrentUser();
     if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);
 
@@ -63,6 +65,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    if (!isUuid(id)) return apiError("not_found", "That sequence does not exist.", 404);
     const user = await getCurrentUser();
     if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);
 

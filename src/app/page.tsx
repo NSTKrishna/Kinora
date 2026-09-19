@@ -3,22 +3,26 @@ import { ArrowRight, Image as ImageIcon, Clapperboard, Wand2 } from "lucide-reac
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MediaCard } from "@/components/media-card";
 import { EffectCard } from "@/components/effects/effect-card";
+import { ExploreFeed } from "@/components/explore/explore-feed";
 import { isDatabaseConfigured } from "@/db";
 import { getEffects } from "@/lib/presets";
 import type { EffectView } from "@/lib/presets";
+import { getPublicFeed } from "@/lib/queries";
 import { FEED_ITEMS, posterStyle } from "@/lib/placeholder";
-
-const FILTERS = ["All", "Video", "Image", "Effects", "Cinema"];
 
 export default async function ExplorePage() {
   const hero = FEED_ITEMS[0];
 
-  // The rail is a bonus on the landing page, never a reason it fails to render.
+  // Neither of these is a reason the landing page fails to render.
   let effects: EffectView[] = [];
+  let feed = { items: [], nextCursor: null } as Awaited<ReturnType<typeof getPublicFeed>>;
+
   if (isDatabaseConfigured()) {
-    effects = await getEffects().catch(() => []);
+    [effects, feed] = await Promise.all([
+      getEffects().catch(() => []),
+      getPublicFeed("all").catch(() => ({ items: [], nextCursor: null })),
+    ]);
   }
 
   return (
@@ -106,38 +110,16 @@ export default async function ExplorePage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="eyebrow">Explore</p>
-            <h2 className="mt-1 text-xl font-medium">Fresh from the queue</h2>
-          </div>
-          <div className="no-scrollbar flex gap-2 overflow-x-auto">
-            {FILTERS.map((filter, i) => (
-              <button
-                key={filter}
-                type="button"
-                className={
-                  i === 0
-                    ? "shrink-0 rounded-full bg-secondary px-3 py-1.5 text-xs text-foreground"
-                    : "shrink-0 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                }
-              >
-                {filter}
-              </button>
-            ))}
+            <h2 className="mt-1 text-xl font-medium">Shared by other visitors</h2>
+            <p className="mt-1 max-w-lg text-sm text-muted-foreground">
+              Anything made here stays private until someone publishes it. Hit Recreate on a tile to
+              start from that prompt.
+            </p>
           </div>
         </div>
 
-        <div className="mt-6 columns-1 gap-4 [column-fill:_balance] sm:columns-2 lg:columns-3 xl:columns-4">
-          {FEED_ITEMS.map((item, i) => (
-            <div key={item.id} className="mb-4 animate-fade-up break-inside-avoid">
-              <MediaCard item={item} seed={i} />
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-10 flex justify-center">
-          <Button variant="outline">
-            Load more
-            <ArrowRight />
-          </Button>
+        <div className="mt-6">
+          <ExploreFeed initial={feed} />
         </div>
       </section>
     </div>

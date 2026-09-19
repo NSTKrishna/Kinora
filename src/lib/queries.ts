@@ -1,10 +1,19 @@
 import "server-only";
 
-import { and, desc, eq, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { assets, jobs } from "@/db/schema";
-import { serializeAsset, serializeJob, type AssetView, type JobView } from "@/lib/serialize";
+import { assets, characterAssets, characters, jobs } from "@/db/schema";
+import { getModel } from "@/lib/models";
+import {
+  serializeAsset,
+  serializeJob,
+  type AssetView,
+  type ExploreItem,
+  type JobView,
+} from "@/lib/serialize";
+
+export type { ExploreItem };
 
 export type JobWithAssets = JobView & { assets: AssetView[] };
 
@@ -108,4 +117,102 @@ export async function getLibraryPage(
     assets: page.map(serializeAsset),
     nextCursor: hasMore ? page[page.length - 1].createdAt.toISOString() : null,
   };
+}
+
+/* ---------------------------------------------------------------- explore */
+
+export const EXPLORE_PAGE_SIZE = 24;
+
+export type ExploreFilter = "all" | "image" | "video" | "effect";
+
+/**
+ * The Explore feed.
+ *
+ * Public assets only, newest first, and nothing about the author beyond the
+ * work itself — a guest who shares a render has not agreed to be identified.
+ * The join is on the job so an effect render can be told apart from a
+ * composer one, which is what the Effects filter needs.
+ */
+export async function getPublicFeed(
+  filter: ExploreFilter = "all",
+  cursor?: string,
+): Promise<{ items: ExploreItem[]; nextCursor: string | null }> {
+  const kinds =
+    filter === "image" || filter === "video" ? ([filter] as const) : (["image", "video"] as const);
+
+  const rows = await getDb()
+    .select({ asset: assets, presetSlug: jobs.presetSlug })
+    .from(assets)
+    .leftJoin(jobs, eq(jobs.id, assets.jobId))
+    .where(
+      and(
+        eq(assets.isPublic, true),
+        inArray(assets.kind, [...kinds]),
+        filter === "effect" ? isNotNull(jobs.presetSlug) : undefined,
+        cursor ? lt(assets.createdAt, new Date(cursor)) : undefined,
+      ),
+    )
+    .orderBy(desc(assets.createdAt))
+    .limit(EXPLORE_PAGE_SIZE + 1);
+
+  const hasMore = rows.length > EXPLORE_PAGE_SIZE;
+  const page = hasMore ? rows.slice(0, EXPLORE_PAGE_SIZE) : rows;
+
+  return {
+    items: page.map((row) => ({
+      ...serializeAsset(row.asset),
+      presetSlug: row.presetSlug,
+      modelLabel: row.asset.modelId ? (getModel(row.asset.modelId)?.label ?? null) : null,
+    })),
+    nextCursor: hasMore ? page[page.length - 1].asset.createdAt.toISOString() : null,
+  };
+}
+
+/** One public asset, for a shared link straight to the detail view. */
+export async function getPublicAsset(assetId: string): Promise<ExploreItem | null> {
+  const [row] = await getDb()
+    .select({ asset: assets, presetSlug: jobs.presetSlug })
+    .from(assets)
+    .leftJoin(jobs, eq(jobs.id, assets.jobId))
+    .where(and(eq(assets.id, assetId), eq(assets.isPublic, true)))
+    .limit(1);
+
+  if (!row) return null;
+  return {
+    ...serializeAsset(row.asset),
+    presetSlug: row.presetSlug,
+    modelLabel: row.asset.modelId ? (getModel(row.asset.modelId)?.label ?? null) : null,
+  };
+}
+
+/* ------------------------------------------------------------- characters */
+
+/** The user's characters with their reference URLs, for pages and pickers. */
+export async function getCharacters(userId: string) {
+  const rows = await getDb()
+    .select()
+    .from(characters)
+    .where(eq(characters.userId, userId))
+    .orderBy(desc(characters.createdAt))
+    .limit(50);
+
+  if (!rows.length) return [];
+
+  const links = await getDb()
+    .select({ characterId: characterAssets.characterId, url: assets.url })
+    .from(characterAssets)
+    .innerJoin(assets, eq(assets.id, characterAssets.assetId))
+    .where(
+      inArray(
+        characterAssets.characterId,
+        rows.map((row) => row.id),
+      ),
+    );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    urls: links.filter((link) => link.characterId === row.id).map((link) => link.url),
+    createdAt: row.createdAt.toISOString(),
+  }));
 }

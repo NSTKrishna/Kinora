@@ -27,6 +27,7 @@ import { OptionPicker } from "@/components/cinema/option-picker";
 import { ReferenceStrip } from "@/components/cinema/reference-strip";
 import { useJobQueue, isActiveStatus, type QueuedJob } from "@/hooks/use-job-queue";
 import { useTabTitleAlert } from "@/hooks/use-finish-alerts";
+import { CreditNotice } from "@/components/credits/credit-notice";
 import {
   CINEMA_STEPS,
   FRAME_COUNT,
@@ -56,17 +57,23 @@ export function CinemaStudio({
   initialProject,
   initialBalance,
   projects,
+  initialReferenceUrls = [],
 }: {
   initialProject: CinemaProjectView | null;
   initialBalance: number | null;
   projects: { id: string; title: string; step: CinemaStep; updatedAt: string }[];
+  /** Set when arriving from a character; seeds the Scene step's references. */
+  initialReferenceUrls?: string[];
 }) {
   const router = useRouter();
 
   const [project, setProject] = React.useState(initialProject);
-  const [draft, setDraft] = React.useState<CinemaDraft>(
-    () => initialProject?.spec ?? EMPTY_DRAFT(),
-  );
+  const [draft, setDraft] = React.useState<CinemaDraft>(() => {
+    const base = initialProject?.spec ?? EMPTY_DRAFT();
+    return initialReferenceUrls.length
+      ? { ...base, scene: { ...base.scene, referenceUrls: initialReferenceUrls } }
+      : base;
+  });
   const [step, setStep] = React.useState<CinemaStep>(initialProject?.step ?? "scene");
   const [error, setError] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
@@ -619,6 +626,8 @@ function FramesStep({
           That render did not finish. {job.costCredits} credits went back to your balance.
         </p>
       ) : null}
+
+      <CreditNotice balance={balance} cost={cost} />
     </div>
   );
 }
@@ -736,6 +745,8 @@ function MotionStep({
           Go back to Frames and pick the still this clip starts from.
         </p>
       ) : null}
+
+      <CreditNotice balance={balance} cost={cost} />
     </div>
   );
 }

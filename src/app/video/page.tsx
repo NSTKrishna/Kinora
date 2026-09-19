@@ -5,26 +5,33 @@ import { Studio, type StudioPrefill } from "@/components/studio/studio";
 import { getCurrentUser } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
 import { modelsByKind, MODELS, type ModelId } from "@/lib/models";
-import { getOwnAsset, getOwnJob, getRecentJobs } from "@/lib/queries";
+import { getCharacters, getOwnAsset, getOwnJob, getRecentJobs } from "@/lib/queries";
 
 export const metadata: Metadata = { title: "Video" };
 
 export default async function VideoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ recreate?: string; from?: string; prompt?: string }>;
+  searchParams: Promise<{
+    recreate?: string;
+    from?: string;
+    prompt?: string;
+    model?: string;
+    character?: string;
+  }>;
 }) {
-  const { recreate, from, prompt } = await searchParams;
+  const { recreate, from, prompt, model, character } = await searchParams;
 
   const user = await getCurrentUser();
   const balance = user ? await getBalance(user.id) : null;
   const jobs = user ? await getRecentJobs(user.id, "video") : [];
+  const characters = user ? await getCharacters(user.id) : [];
   const modelIds = modelsByKind("video").map((model) => model.id as ModelId);
 
   const prefill = user
-    ? await buildPrefill(user.id, { recreate, from, prompt })
+    ? await buildPrefill(user.id, { recreate, from, prompt, model, character })
     : prompt
-      ? { prompt }
+      ? { prompt, modelId: asModelId(model) }
       : undefined;
 
   return (
@@ -41,6 +48,7 @@ export default async function VideoPage({
         initialBalance={balance}
         initialJobs={jobs}
         prefill={prefill}
+        characters={characters}
       />
     </div>
   );
@@ -49,7 +57,7 @@ export default async function VideoPage({
 /** `?from=<assetId>` is what the Animate button on an image card sends. */
 async function buildPrefill(
   userId: string,
-  params: { recreate?: string; from?: string; prompt?: string },
+  params: { recreate?: string; from?: string; prompt?: string; model?: string; character?: string },
 ): Promise<StudioPrefill | undefined> {
   if (params.recreate) {
     const job = await getOwnJob(userId, params.recreate);
@@ -82,7 +90,22 @@ async function buildPrefill(
   }
 
   // `?prompt=` is what Recreate on an Explore card sends.
-  if (params.prompt) return { prompt: params.prompt.slice(0, 2000) };
+  // `?character=` comes from the Characters page. The composer attaches the
+  // photos itself, so all that travels is the id.
+  if (params.character) {
+    return { characterId: params.character, prompt: params.prompt?.slice(0, 2000) };
+  }
+
+  if (params.prompt) {
+    return { prompt: params.prompt.slice(0, 2000), modelId: asModelId(params.model) };
+  }
 
   return undefined;
+}
+
+/** A model id from a URL is untrusted: only the composer's own models count. */
+function asModelId(id: string | undefined): ModelId | undefined {
+  if (!id) return undefined;
+  const model = modelsByKind("video").find((entry) => entry.id === id);
+  return model ? (model.id as ModelId) : undefined;
 }

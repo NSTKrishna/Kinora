@@ -5,7 +5,7 @@ import { getBalance } from "@/lib/credits";
 import { getJob, getJobAssets, isActive } from "@/lib/jobs";
 import { getModel } from "@/lib/models";
 import { getProvider } from "@/lib/providers";
-import { apiError, toResponse } from "@/lib/api";
+import { apiError, isUuid, toResponse } from "@/lib/api";
 import { serializeAsset, serializeJob } from "@/lib/serialize";
 import { reconcile } from "@/lib/reconcile";
 
@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    if (!isUuid(id)) return apiError("not_found", "That render does not exist.", 404);
 
     const user = await getCurrentUser();
     if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);

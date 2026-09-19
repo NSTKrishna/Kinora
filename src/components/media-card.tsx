@@ -16,9 +16,11 @@ type MediaCardProps = {
   seed?: number;
   className?: string;
   priority?: boolean;
+  /** Marks the tile as Kinora's own filler rather than someone's render. */
+  sample?: boolean;
 };
 
-export function MediaCard({ item, src, videoSrc, seed = 0, className }: MediaCardProps) {
+export function MediaCard({ item, src, videoSrc, seed = 0, className, sample }: MediaCardProps) {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const [active, setActive] = React.useState(false);
 
@@ -83,6 +85,12 @@ export function MediaCard({ item, src, videoSrc, seed = 0, className }: MediaCar
 
         {/* Legibility scrim — media stays the subject. */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+
+        {sample ? (
+          <div className="absolute right-3 top-3 rounded-full bg-black/55 px-2 py-1 text-micro font-medium uppercase tracking-[0.12em] text-white/80 backdrop-blur">
+            Sample
+          </div>
+        ) : null}
 
         {item.kind === "video" ? (
           <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/55 px-2 py-1 text-micro font-medium uppercase tracking-[0.12em] text-white/90 backdrop-blur">

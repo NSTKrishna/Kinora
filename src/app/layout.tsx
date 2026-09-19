@@ -4,8 +4,9 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { getCurrentUser } from "@/lib/auth";
-import { getBalance } from "@/lib/credits";
+import { canClaimDaily, DAILY_CREDITS, getBalance } from "@/lib/credits";
 import { SiteFooter } from "@/components/site-footer";
+import { LOW_BALANCE } from "@/lib/pricing";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
@@ -32,13 +33,20 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Guest-first: a fresh visitor already has a session and starter credits here.
   const user = await getCurrentUser();
-  const credits = user ? await getBalance(user.id) : null;
+  const [credits, claimable] = user
+    ? await Promise.all([getBalance(user.id), canClaimDaily(user.id)])
+    : [null, false];
 
   return (
     <html lang="en" className="dark">
       <body className={`${inter.variable} font-sans`}>
         <div className="flex min-h-dvh flex-col">
-          <SiteHeader credits={credits} />
+          <SiteHeader
+            credits={credits}
+            claimable={claimable}
+            dailyAmount={DAILY_CREDITS}
+            lowAt={LOW_BALANCE}
+          />
           <main className="flex-1">{children}</main>
           <SiteFooter />
         </div>

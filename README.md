@@ -87,6 +87,43 @@ Example loops in `public/mock/effects/` were generated here with ffmpeg. They ar
 reference motion, not renders of the effect itself; with `PROVIDER=mock` a run
 returns its own effect's loop so the demo stays coherent.
 
+## Explore
+
+`/` is the public feed: assets their owner made public, newest first, filtered
+by Images / Videos / Effects, with infinite scroll and a detail modal carrying
+the prompt, the model and "Recreate this". Nothing about the author is shown —
+a guest who shares a render has not agreed to be identified.
+
+Recreate on someone else's work cannot reopen their job, so it prefills the
+matching composer from what the feed already shows (`?prompt=` and `?model=`);
+an effect render opens that effect instead. While there are fewer than eight
+public renders, sample tiles pad the grid — labelled "Sample", never counted as
+anyone's work.
+
+## Characters
+
+`/characters`: 3–10 photos under a name. Nothing is trained, per AGENTS.md —
+they are stored references, and the page says so where someone would otherwise
+assume a fine-tune. Selecting one in Image or Cinema attaches them to the model,
+and **says what it did**: how many photos a model can take is read off the
+registry's capabilities, so a model that takes one of ten, or none at all,
+reports that before anything is charged rather than rendering the wrong thing.
+
+## Credits
+
+Cost is shown before every submit, and `CreditNotice` covers the two states that
+matter: running low (under one clip) and short for this render — each ending in
+something to do rather than a dead end.
+
+The header carries the balance and, once a day, a Claim button that calls
+`grantDaily`. It is a button rather than an automatic top-up: credits arriving
+silently teach nobody that renders cost anything.
+
+`/pricing` has Free / Pro / Max, all labelled demo billing. "Upgrade" writes a
+`purchase` row to the same ledger every render is charged against — no payment
+provider is connected, there is no card form, and the button says so. Each
+top-up is keyed per plan per day, so a double-click cannot buy twice.
+
 ## Cinema
 
 A director's panel in five steps: Scene → Rig → Frames → pick the anchor →
@@ -146,14 +183,15 @@ Run `pnpm typecheck && pnpm lint && pnpm build` before every commit.
 
 | Route             | What's there                                  |
 | ----------------- | --------------------------------------------- |
-| `/`               | Hero + masonry Explore feed                   |
+| `/`               | Explore: public feed, filters, detail modal   |
 | `/image`          | Image composer + recent renders               |
 | `/video`          | Video composer + recent renders               |
 | `/effects`        | Eight one-photo effects, filtered by category |
 | `/effects/[slug]` | Example, photo slot, inline job, result       |
 | `/cinema`         | Director's panel: scene, rig, frames, motion  |
+| `/characters`     | 3–10 stored reference photos under a name     |
 | `/library`        | Your renders (loading / empty / error states) |
-| `/pricing`        | Credit plans (demo billing, no payments)      |
+| `/pricing`        | Free / Pro / Max — demo billing, no payments  |
 
 ## Structure
 

@@ -15,6 +15,8 @@ import {
   toView,
   type CinemaProjectView,
 } from "@/lib/cinema-projects";
+import { MAX_REFERENCES } from "@/lib/cinema";
+import { getCharacters } from "@/lib/queries";
 
 export const metadata: Metadata = {
   title: "Cinema",
@@ -24,9 +26,9 @@ export const metadata: Metadata = {
 export default async function CinemaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string; new?: string }>;
+  searchParams: Promise<{ p?: string; new?: string; character?: string }>;
 }) {
-  const { p, new: fresh } = await searchParams;
+  const { p, new: fresh, character } = await searchParams;
 
   if (!isDatabaseConfigured()) {
     return (
@@ -59,6 +61,15 @@ export default async function CinemaPage({
 
   const projects = user ? await listProjects(user.id) : [];
 
+  // `?character=` comes from the Characters page: open a fresh panel with that
+  // character's photos already in the reference slots, capped at what the
+  // frames model can take.
+  let referenceUrls: string[] = [];
+  if (user && character) {
+    const saved = (await getCharacters(user.id)).find((entry) => entry.id === character);
+    referenceUrls = saved?.urls.slice(0, MAX_REFERENCES) ?? [];
+  }
+
   return (
     <div className="container py-8">
       <PageHeader
@@ -67,7 +78,12 @@ export default async function CinemaPage({
         description="A director's panel. Describe the shot, choose the rig, render four frames, pick one and give it a camera move. Every step is saved as you go."
       />
 
-      <CinemaStudio initialProject={project} initialBalance={balance} projects={projects} />
+      <CinemaStudio
+        initialProject={project}
+        initialBalance={balance}
+        projects={projects}
+        initialReferenceUrls={referenceUrls}
+      />
     </div>
   );
 }

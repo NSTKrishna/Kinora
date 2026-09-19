@@ -12,6 +12,16 @@ export function apiError(code: string, message: string, status: number) {
   return NextResponse.json<ApiError>({ error: { code, message } }, { status });
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Every `[id]` route takes a uuid. Postgres raises on anything else, which
+ * would surface as a 500 — a malformed URL is a "not found", not a fault.
+ */
+export function isUuid(value: string): boolean {
+  return UUID.test(value);
+}
+
 /** Turns the errors this app actually throws into honest HTTP responses. */
 export function toResponse(error: unknown) {
   if (error instanceof ZodError) {

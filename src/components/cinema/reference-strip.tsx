@@ -7,8 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { uploadImage } from "@/lib/upload";
 import { MAX_REFERENCES } from "@/lib/cinema";
-
-type CharacterView = { id: string; name: string; urls: string[] };
+import { CHARACTER_MIN_PHOTOS, type CharacterView } from "@/lib/characters";
 
 /**
  * Up to four references, or a saved character standing in for all of them.
@@ -35,6 +34,18 @@ export function ReferenceStrip({
   const [naming, setNaming] = React.useState(false);
 
   const full = urls.length >= MAX_REFERENCES;
+  const [notice, setNotice] = React.useState<string | null>(null);
+
+  /** A character can hold ten photos; the frames model takes four. Say which. */
+  const applyCharacter = (character: CharacterView) => {
+    const kept = character.urls.slice(0, MAX_REFERENCES);
+    onChange(kept);
+    setNotice(
+      character.urls.length > MAX_REFERENCES
+        ? `${character.name} has ${character.urls.length} photos — the frames model takes ${MAX_REFERENCES}, so the first ${MAX_REFERENCES} are attached.`
+        : null,
+    );
+  };
 
   const loadCharacters = React.useCallback(async () => {
     try {
@@ -175,7 +186,7 @@ export function ReferenceStrip({
               <button
                 key={character.id}
                 type="button"
-                onClick={() => onChange(character.urls.slice(0, MAX_REFERENCES))}
+                onClick={() => applyCharacter(character)}
                 className="flex items-center gap-2 rounded-full border border-border py-1 pl-1 pr-3 text-xs transition-colors hover:border-primary/40"
               >
                 {character.urls[0] ? (
@@ -193,7 +204,9 @@ export function ReferenceStrip({
         </div>
       ) : null}
 
-      {urls.length ? (
+      {notice ? <p className="mt-2 text-xs text-muted-foreground">{notice}</p> : null}
+
+      {urls.length >= CHARACTER_MIN_PHOTOS ? (
         <div className="mt-3">
           {naming ? (
             <div className="flex gap-2">

@@ -12,7 +12,7 @@ import {
 } from "@/lib/generate";
 import { getModel } from "@/lib/models";
 import { getOwnAsset } from "@/lib/queries";
-import { apiError, toResponse } from "@/lib/api";
+import { apiError, isUuid, toResponse } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +30,7 @@ const bodySchema = z.object({ stage: z.enum(["frames", "motion"]) });
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
+    if (!isUuid(id)) return apiError("not_found", "That sequence does not exist.", 404);
     const user = await getCurrentUser();
     if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);
 

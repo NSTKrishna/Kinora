@@ -35,3 +35,15 @@ export function serializeAsset(asset: Asset) {
     createdAt: asset.createdAt.toISOString(),
   };
 }
+
+/**
+ * A public asset as Explore shows it. Lives here rather than in the query
+ * module so client components can hold the type without importing anything
+ * that is marked server-only.
+ */
+export type ExploreItem = AssetView & {
+  /** The effect it came from, when it came from one. */
+  presetSlug: string | null;
+  /** Kinora's own name for the model, never the provider's endpoint id. */
+  modelLabel: string | null;
+};

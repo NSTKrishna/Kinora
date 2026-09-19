@@ -149,6 +149,16 @@ export async function grantStarter(userId: string, amount = STARTER_CREDITS): Pr
   });
 }
 
+/** The idempotency key that makes a day's claim a one-off. */
+function dailyKey(userId: string, date = new Date()): string {
+  return `daily:${userId}:${date.toISOString().slice(0, 10)}`;
+}
+
+/** Whether today's free credits are still there to be claimed. */
+export async function canClaimDaily(userId: string, date = new Date()): Promise<boolean> {
+  return !(await hasEntry(getDb(), userId, dailyKey(userId, date)));
+}
+
 /** Tops a user up once per UTC day. Calling it on every visit is fine. */
 export async function grantDaily(
   userId: string,
@@ -160,7 +170,55 @@ export async function grantDaily(
   return append(userId, {
     delta: amount,
     kind: "daily_grant",
-    idempotencyKey: `daily:${userId}:${day}`,
+    idempotencyKey: dailyKey(userId, date),
     note: `Daily credits for ${day}`,
+  });
+}
+
+/* ------------------------------------------------------------ demo billing */
+
+/**
+ * The demo plans.
+ *
+ * No payment provider is connected and none is planned in this build, so
+ * "Upgrade" writes a `purchase` ledger entry and nothing else. The key is
+ * scoped to the plan and the day, which means a top-up is idempotent — a
+ * double-click cannot buy twice — while still letting someone come back
+ * tomorrow. That is the honest shape of a demo: real ledger, no money.
+ */
+export const PLANS = {
+  free: { id: "free", name: "Free", price: "$0", credits: 0 },
+  pro: { id: "pro", name: "Pro", price: "$12", credits: 500 },
+  max: { id: "max", name: "Max", price: "$39", credits: 2000 },
+} as const;
+
+export type PlanId = keyof typeof PLANS;
+
+export function isPlanId(value: string): value is PlanId {
+  return value in PLANS;
+}
+
+/** Whether this plan's demo top-up is still available today. */
+export async function canPurchase(userId: string, plan: PlanId, date = new Date()) {
+  return !(await hasEntry(getDb(), userId, purchaseKey(userId, plan, date)));
+}
+
+function purchaseKey(userId: string, plan: PlanId, date: Date): string {
+  return `purchase:${userId}:${plan}:${date.toISOString().slice(0, 10)}`;
+}
+
+export async function purchasePlan(
+  userId: string,
+  plan: PlanId,
+  date = new Date(),
+): Promise<number> {
+  const { credits, name } = PLANS[plan];
+  if (credits <= 0) throw new Error(`Plan ${plan} grants no credits`);
+
+  return append(userId, {
+    delta: credits,
+    kind: "purchase",
+    idempotencyKey: purchaseKey(userId, plan, date),
+    note: `${name} plan — demo billing, nothing charged`,
   });
 }

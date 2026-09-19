@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Toaster, useToasts } from "@/components/ui/toast";
 import { ImageField } from "@/components/studio/image-field";
+import { CreditNotice } from "@/components/credits/credit-notice";
 import { AssetMedia } from "@/components/studio/asset-media";
 import { formatElapsed, stageLabel, useElapsed } from "@/components/studio/job-card";
 import { useJobQueue, isActiveStatus, type QueuedJob } from "@/hooks/use-job-queue";
@@ -86,7 +87,6 @@ export function EffectRunner({
   // The newest run owns the result tile; older ones sit in the history strip.
   const current = jobs[0];
   const history = jobs.slice(1).filter((job) => job.assets.length > 0);
-  const affordable = balance === null || balance >= effect.credits;
 
   const onGenerate = async () => {
     setError(null);
@@ -189,11 +189,9 @@ export function EffectRunner({
 
           {!photo ? (
             <p className="text-xs text-muted-foreground">Add a photo to run this effect.</p>
-          ) : !affordable ? (
-            <p className="text-xs text-muted-foreground">
-              That costs more than you have left. Credits refresh daily.
-            </p>
           ) : null}
+
+          <CreditNotice balance={balance} cost={effect.credits} />
 
           {current ? <HowItWasMade job={current} effect={effect} /> : null}
         </aside>

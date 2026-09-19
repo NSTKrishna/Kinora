@@ -116,12 +116,15 @@ const schnellParams = z.object({
   seed: seedSchema,
 });
 
+/** How many references a multi-reference model accepts in one call. */
+export const MAX_MULTI_REFERENCES = 4;
+
 const nanoBananaParams = z.object({
   prompt: promptSchema,
   image_urls: z
     .array(z.string().url())
     .min(1, "Add at least one reference image.")
-    .max(4, "Four references is the limit."),
+    .max(MAX_MULTI_REFERENCES, `${MAX_MULTI_REFERENCES} references is the limit.`),
   aspect_ratio: z.enum(["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]).default("16:9"),
   num_images: z.coerce.number().int().min(1).max(4).default(1),
   seed: seedSchema,
@@ -352,6 +355,11 @@ export type AnyModel = (typeof MODELS)[ModelId];
 
 export function getModel(id: string): AnyModel | undefined {
   return (MODELS as Record<string, AnyModel>)[id];
+}
+
+/** Capability flags are optional, so read them through these rather than inline. */
+export function takesMultipleReferences(model: AnyModel): boolean {
+  return "multiReference" in model.capabilities && model.capabilities.multiReference === true;
 }
 
 /** Reachable only by the flow that owns it, never by the composer or an API caller. */
