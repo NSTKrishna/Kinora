@@ -21,6 +21,7 @@ export function serializeJob(job: Job) {
 export function serializeAsset(asset: Asset) {
   return {
     id: asset.id,
+    jobId: asset.jobId,
     kind: asset.kind,
     url: asset.url,
     thumbUrl: asset.thumbUrl,
@@ -29,6 +30,7 @@ export function serializeAsset(asset: Asset) {
     durationMs: asset.durationMs,
     prompt: asset.prompt,
     modelId: asset.modelId,
+    isPublic: asset.isPublic,
     createdAt: asset.createdAt.toISOString(),
   };
 }

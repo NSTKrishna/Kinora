@@ -8,8 +8,15 @@ import { z } from "zod";
  * lives here, so adding a model is a single edit.
  *
  * Pricing checked against fal's model pages on 2026-09-20:
- *   fal-ai/flux/schnell     $0.003 per megapixel (billed rounded up to the MP)
- *   fal-ai/flux-pro/kontext $0.04  per image
+ *   fal-ai/flux/schnell                  $0.003 per megapixel (rounded up)
+ *   fal-ai/flux-pro/kontext              $0.04  per image
+ *   fal-ai/ltx-2.3/image-to-video/fast   $0.04/s at 1080p, $0.08 at 1440p, $0.16 at 2160p
+ *   fal-ai/ltx-2.3/text-to-video/fast    same rates
+ *
+ * On video the scale stops being a straight conversion: a 6s 1080p clip really
+ * costs ~$0.24, which at the image rate would be ~80 credits. The brief anchors
+ * video at ~20, so the demo subsidises it and the proportionality is kept
+ * *within* video — twice the seconds or twice the resolution costs twice.
  *
  * Credits are deliberately not a currency conversion — they are a coarse,
  * user-legible scale where a standard still is ~2 and a video is ~20, while
@@ -108,6 +115,67 @@ const kontextParams = z.object({
   seed: seedSchema,
 });
 
+/* ---------------------------------------------------------------- video */
+
+/** Mirrors fal's own rate card: 1080p, 1440p (2x), 2160p (4x). */
+const RESOLUTION_MULTIPLIER = { "1080p": 1, "1440p": 2, "2160p": 4 } as const;
+
+export const VIDEO_RESOLUTIONS = Object.keys(RESOLUTION_MULTIPLIER) as [
+  keyof typeof RESOLUTION_MULTIPLIER,
+  ...(keyof typeof RESOLUTION_MULTIPLIER)[],
+];
+
+/** fal accepts 6..20 in steps of two; anything past 10 needs 25fps at 1080p. */
+export const VIDEO_DURATIONS = [6, 8, 10] as const;
+
+const BASE_VIDEO_CREDITS = 20;
+const BASE_VIDEO_SECONDS = 6;
+
+function videoCredits(params: {
+  duration: number;
+  resolution: keyof typeof RESOLUTION_MULTIPLIER;
+}) {
+  const seconds = params.duration / BASE_VIDEO_SECONDS;
+  return Math.round(BASE_VIDEO_CREDITS * seconds * RESOLUTION_MULTIPLIER[params.resolution]);
+}
+
+const videoCommon = {
+  resolution: z.enum(VIDEO_RESOLUTIONS).default("1080p"),
+  duration: z.coerce
+    .number()
+    .int()
+    .refine((value): value is (typeof VIDEO_DURATIONS)[number] =>
+      (VIDEO_DURATIONS as readonly number[]).includes(value),
+    )
+    .default(6),
+  // Audio and lipsync are out of scope for this build, so never ask for it.
+  generate_audio: z.literal(false).default(false),
+};
+
+const t2vParams = z.object({
+  prompt: promptSchema,
+  aspect_ratio: z.enum(["16:9", "9:16"]).default("16:9"),
+  ...videoCommon,
+});
+
+const i2vParams = z.object({
+  prompt: promptSchema,
+  image_url: z.string().url("Pick a start frame first."),
+  end_image_url: z.string().url().optional(),
+  aspect_ratio: z.enum(["auto", "16:9", "9:16"]).default("auto"),
+  ...videoCommon,
+});
+
+const durationOptions = VIDEO_DURATIONS.map((value) => ({
+  value: String(value),
+  label: `${value}s`,
+}));
+
+const resolutionOptions = VIDEO_RESOLUTIONS.map((value) => ({
+  value,
+  label: value === "1080p" ? "1080p" : `${value} ·  ${RESOLUTION_MULTIPLIER[value]}x`,
+}));
+
 const sizeOptions = Object.entries(IMAGE_SIZES).map(([value, size]) => ({
   value,
   label: `${size.label} · ${size.width}×${size.height}`,
@@ -177,6 +245,68 @@ export const MODELS = {
       { name: "seed", label: "Seed", type: "seed", help: "Leave empty for a new roll." },
     ],
   } satisfies ModelDefinition<typeof kontextParams>,
+  "ltx-i2v": {
+    id: "ltx-i2v",
+    label: "Kinora Motion",
+    blurb: "Animates a still you give it. Add an end frame for a transition.",
+    kind: "video",
+    providerModelId: "fal-ai/ltx-2.3/image-to-video/fast",
+    schema: i2vParams,
+    capabilities: { referenceImages: true, startEndFrames: true },
+    credits: videoCredits,
+    costNote: "fal-ai/ltx-2.3/image-to-video/fast — $0.04/s at 1080p (2026-09-20)",
+    fields: [
+      {
+        name: "image_url",
+        label: "Start frame",
+        type: "image",
+        help: "Required. Animate any render from your library.",
+      },
+      {
+        name: "end_image_url",
+        label: "End frame",
+        type: "image",
+        help: "Optional. Given both, it renders the transition between them.",
+      },
+      { name: "duration", label: "Duration", type: "select", options: durationOptions },
+      { name: "resolution", label: "Resolution", type: "select", options: resolutionOptions },
+      {
+        name: "aspect_ratio",
+        label: "Aspect",
+        type: "select",
+        options: [
+          { value: "auto", label: "Match source" },
+          { value: "16:9", label: "16:9" },
+          { value: "9:16", label: "9:16" },
+        ],
+      },
+    ],
+  } satisfies ModelDefinition<typeof i2vParams>,
+
+  "ltx-t2v": {
+    id: "ltx-t2v",
+    label: "Kinora Motion Text",
+    blurb: "Straight from a prompt. No source image needed.",
+    kind: "video",
+    providerModelId: "fal-ai/ltx-2.3/text-to-video/fast",
+    schema: t2vParams,
+    capabilities: { referenceImages: false, startEndFrames: false },
+    credits: videoCredits,
+    costNote: "fal-ai/ltx-2.3/text-to-video/fast — $0.04/s at 1080p (2026-09-20)",
+    fields: [
+      { name: "duration", label: "Duration", type: "select", options: durationOptions },
+      { name: "resolution", label: "Resolution", type: "select", options: resolutionOptions },
+      {
+        name: "aspect_ratio",
+        label: "Aspect",
+        type: "select",
+        options: [
+          { value: "16:9", label: "16:9" },
+          { value: "9:16", label: "9:16" },
+        ],
+      },
+    ],
+  } satisfies ModelDefinition<typeof t2vParams>,
 } as const;
 
 export type ModelId = keyof typeof MODELS;

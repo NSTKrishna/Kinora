@@ -1,58 +1,81 @@
 import type { Metadata } from "next";
-import { Film } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
-import { Composer } from "@/components/composer";
-import { EmptyState } from "@/components/empty-state";
-import { MediaCard } from "@/components/media-card";
-import { Button } from "@/components/ui/button";
-import { FEED_ITEMS } from "@/lib/placeholder";
+import { Studio, type StudioPrefill } from "@/components/studio/studio";
+import { getCurrentUser } from "@/lib/auth";
+import { getBalance } from "@/lib/credits";
+import { modelsByKind, MODELS, type ModelId } from "@/lib/models";
+import { getOwnAsset, getOwnJob, getRecentJobs } from "@/lib/queries";
 
 export const metadata: Metadata = { title: "Video" };
 
-const RECENT = FEED_ITEMS.filter((item) => item.kind === "video").slice(0, 3);
+export default async function VideoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ recreate?: string; from?: string }>;
+}) {
+  const { recreate, from } = await searchParams;
 
-export default function VideoPage() {
+  const user = await getCurrentUser();
+  const balance = user ? await getBalance(user.id) : null;
+  const jobs = user ? await getRecentJobs(user.id, "video") : [];
+  const modelIds = modelsByKind("video").map((model) => model.id as ModelId);
+
+  const prefill = user ? await buildPrefill(user.id, { recreate, from }) : undefined;
+
   return (
     <div className="container py-8">
       <PageHeader
         eyebrow="Generate"
         title="Video"
-        description="Describe the shot and the camera move. Renders run async — you can leave the page."
+        description="Describe the shot and the camera move. Renders run async — leave the page, come back, the queue is still here."
       />
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <Composer
-          placeholder="Slow dolly through a rain-slick alley, neon bleeding into puddles…"
-          cost={6}
-          cta="Render"
-          options={[
-            { label: "Model", values: ["Kinora Motion v1", "Kinora Motion Turbo"] },
-            { label: "Duration", values: ["4s", "6s", "8s"] },
-            { label: "Aspect", values: ["16:9", "9:16", "1:1"] },
-            { label: "Camera", values: ["Static", "Dolly in", "Orbit", "Whip pan"] },
-          ]}
-        />
-
-        <div className="flex flex-col gap-6">
-          <EmptyState
-            icon={<Film />}
-            title="No renders in the queue"
-            description="Start a render and its live status shows up here — queued, rendering, then playable inline."
-            action={<Button variant="outline">Start from an effect</Button>}
-            className="min-h-[320px]"
-          />
-
-          <section>
-            <p className="eyebrow">Recent on Kinora</p>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {RECENT.map((item, i) => (
-                <MediaCard key={item.id} item={item} seed={i + 7} />
-              ))}
-            </div>
-          </section>
-        </div>
-      </div>
+      <Studio
+        kind="video"
+        modelIds={modelIds}
+        initialBalance={balance}
+        initialJobs={jobs}
+        prefill={prefill}
+      />
     </div>
   );
+}
+
+/** `?from=<assetId>` is what the Animate button on an image card sends. */
+async function buildPrefill(
+  userId: string,
+  params: { recreate?: string; from?: string },
+): Promise<StudioPrefill | undefined> {
+  if (params.recreate) {
+    const job = await getOwnJob(userId, params.recreate);
+    if (!job || !MODELS[job.modelId as ModelId]) return undefined;
+
+    const input = (job.input ?? {}) as Record<string, unknown>;
+    const values: Record<string, string> = {};
+    for (const field of MODELS[job.modelId as ModelId].fields) {
+      const value = input[field.name];
+      if (value !== undefined && value !== null) values[field.name] = String(value);
+    }
+    return { modelId: job.modelId as ModelId, prompt: job.prompt, values };
+  }
+
+  if (params.from) {
+    const asset = await getOwnAsset(userId, params.from);
+    if (!asset || asset.kind === "video") return undefined;
+
+    const startFrameModel = modelsByKind("video").find(
+      (model) => model.capabilities.startEndFrames,
+    );
+    if (!startFrameModel) return undefined;
+
+    return {
+      modelId: startFrameModel.id as ModelId,
+      // The still's own prompt is a decent starting point for the motion.
+      prompt: asset.prompt ?? "",
+      values: { image_url: asset.url },
+    };
+  }
+
+  return undefined;
 }

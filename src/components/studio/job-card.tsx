@@ -1,65 +1,103 @@
 "use client";
 
 import * as React from "react";
-import { Ban, Check, Loader2, ShieldAlert, TriangleAlert } from "lucide-react";
+import { Ban, Check, Film, Loader2, ShieldAlert, TriangleAlert } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AssetActions } from "@/components/studio/lightbox";
+import { AssetMedia } from "@/components/studio/asset-media";
 import type { AssetView } from "@/lib/serialize";
 import type { QueuedJob } from "@/hooks/use-job-queue";
 
-const STATUS_COPY: Record<
-  QueuedJob["status"],
-  { label: string; tone: "pending" | "done" | "bad"; icon: React.ReactNode }
-> = {
-  queued: { label: "Queued", tone: "pending", icon: <Loader2 className="size-3 animate-spin" /> },
-  running: {
-    label: "Rendering",
-    tone: "pending",
-    icon: <Loader2 className="size-3 animate-spin" />,
-  },
-  completed: { label: "Done", tone: "done", icon: <Check className="size-3" /> },
-  failed: { label: "Failed", tone: "bad", icon: <TriangleAlert className="size-3" /> },
-  nsfw: { label: "Refused", tone: "bad", icon: <ShieldAlert className="size-3" /> },
-  canceled: { label: "Canceled", tone: "bad", icon: <Ban className="size-3" /> },
-};
+/**
+ * Rough render times, used only to decide when the copy says "Finishing".
+ * Nothing depends on them being right — they change a word, not a state.
+ */
+const EXPECTED_MS: Record<QueuedJob["kind"], number> = { image: 8_000, video: 60_000 };
+
+function useElapsed(since: string, active: boolean) {
+  const [now, setNow] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [active]);
+
+  return Math.max(0, now - new Date(since).getTime());
+}
+
+function formatElapsed(ms: number) {
+  const total = Math.floor(ms / 1000);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return minutes ? `${minutes}m ${String(seconds).padStart(2, "0")}s` : `${seconds}s`;
+}
 
 export function JobCard({
   job,
   onCancel,
   onOpen,
   onUseAsReference,
+  onAnimate,
+  onRecreate,
 }: {
   job: QueuedJob;
   onCancel: (id: string) => void;
   onOpen: (asset: AssetView) => void;
-  onUseAsReference: (asset: AssetView) => void;
+  onUseAsReference?: (asset: AssetView) => void;
+  onAnimate?: (asset: AssetView) => void;
+  onRecreate?: (job: QueuedJob) => void;
 }) {
-  const status = STATUS_COPY[job.status];
-  const isPending = status.tone === "pending";
-  const failed = status.tone === "bad";
-  const count = Number(job.input?.num_images ?? 1);
+  const active = job.status === "queued" || job.status === "running";
+  const elapsed = useElapsed(job.createdAt, active);
+  const failed = job.status === "failed" || job.status === "nsfw" || job.status === "canceled";
+
+  // Stage copy, in the user's terms rather than the provider's.
+  const stage =
+    job.status === "queued"
+      ? "In queue"
+      : job.status === "running"
+        ? elapsed > EXPECTED_MS[job.kind] * 0.7
+          ? "Finishing"
+          : "Generating"
+        : job.status === "completed"
+          ? "Done"
+          : job.status === "nsfw"
+            ? "Refused"
+            : job.status === "canceled"
+              ? "Canceled"
+              : "Failed";
+
+  const count = job.kind === "video" ? 1 : Number(job.input?.num_images ?? 1);
 
   return (
     <article className="surface overflow-hidden">
-      <header className="flex items-center gap-3 border-b border-border/70 px-4 py-2.5">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/70 px-4 py-2.5">
         <span
           className={cn(
             "flex items-center gap-1.5 rounded-full px-2 py-1 text-micro font-medium uppercase tracking-[0.12em]",
-            status.tone === "pending" && "bg-primary/15 text-primary",
-            status.tone === "done" && "bg-emerald-500/15 text-emerald-400",
-            status.tone === "bad" && "bg-destructive/15 text-destructive",
+            active && "bg-primary/15 text-primary",
+            job.status === "completed" && "bg-emerald-500/15 text-emerald-400",
+            failed && "bg-destructive/15 text-destructive",
           )}
         >
-          {status.icon}
-          {status.label}
+          {active ? <Loader2 className="size-3 animate-spin" /> : null}
+          {job.status === "completed" ? <Check className="size-3" /> : null}
+          {job.status === "failed" ? <TriangleAlert className="size-3" /> : null}
+          {job.status === "nsfw" ? <ShieldAlert className="size-3" /> : null}
+          {job.status === "canceled" ? <Ban className="size-3" /> : null}
+          {stage}
         </span>
+
+        <span className="text-xs tabular-nums text-muted-foreground">{formatElapsed(elapsed)}</span>
+
         <span className="truncate text-xs text-muted-foreground">
-          {job.costCredits} credits
-          {failed ? " · refunded" : ""}
+          · {job.costCredits} credits{failed ? " · refunded" : ""}
         </span>
-        {isPending ? (
+
+        {active ? (
           <Button
             size="sm"
             variant="ghost"
@@ -68,20 +106,40 @@ export function JobCard({
           >
             Cancel
           </Button>
+        ) : onRecreate ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto shrink-0"
+            onClick={() => onRecreate(job)}
+          >
+            Recreate
+          </Button>
         ) : null}
       </header>
 
       <div className="p-4">
         <p className="line-clamp-2 text-sm text-muted-foreground">{job.prompt}</p>
 
-        {isPending ? (
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {active ? (
+          <div
+            className={cn(
+              "mt-3 grid gap-3",
+              job.kind === "video" ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3",
+            )}
+          >
             {Array.from({ length: count }).map((_, index) => (
               <div
                 key={index}
-                className="relative aspect-square overflow-hidden rounded-md border border-border/70 bg-muted/50"
+                className={cn(
+                  "relative overflow-hidden rounded-md border border-border/70 bg-muted/50",
+                  job.kind === "video" ? "aspect-video" : "aspect-square",
+                )}
               >
                 <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+                {job.kind === "video" ? (
+                  <Film className="absolute left-1/2 top-1/2 size-5 -translate-x-1/2 -translate-y-1/2 text-muted-foreground" />
+                ) : null}
               </div>
             ))}
           </div>
@@ -104,31 +162,39 @@ export function JobCard({
         ) : null}
 
         {job.assets.length ? (
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {job.assets.map((asset) => (
-              <figure key={asset.id} className="group relative">
+          <>
+            <div
+              className={cn(
+                "mt-3 grid gap-3",
+                job.kind === "video" ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3",
+              )}
+            >
+              {job.assets.map((asset) => (
                 <button
+                  key={asset.id}
                   type="button"
                   onClick={() => onOpen(asset)}
                   className="block w-full overflow-hidden rounded-md border border-border/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={asset.url}
-                    alt={asset.prompt ?? "Generated image"}
-                    className="aspect-square w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                    loading="lazy"
+                  <AssetMedia
+                    asset={asset}
+                    className={cn(
+                      "w-full",
+                      asset.kind === "video" ? "aspect-video" : "aspect-square",
+                    )}
                   />
                 </button>
-              </figure>
-            ))}
-          </div>
-        ) : null}
+              ))}
+            </div>
 
-        {job.assets.length ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <AssetActions asset={job.assets[0]} onUseAsReference={onUseAsReference} />
-          </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <AssetActions
+                asset={job.assets[0]}
+                onUseAsReference={onUseAsReference}
+                onAnimate={onAnimate}
+              />
+            </div>
+          </>
         ) : null}
       </div>
     </article>

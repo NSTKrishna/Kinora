@@ -49,6 +49,14 @@ verifies. Polling and webhooks both end in one `transition()`, which is the only
 place a job changes status — so assets are saved once and credits come back
 exactly once, whichever arrives first.
 
+Video sits on the same engine: LTX-2.3 fast for image-to-video (start frame,
+optional end frame for a transition) and text-to-video. Uploads go straight from
+the browser to Vercel Blob and land in the library as `upload` assets.
+
+Active jobs live in Postgres, not in the tab — a refresh mid-render rehydrates
+the queue from the server, including anything that finished while the page was
+closed.
+
 Guards: 2 active jobs per user, 8 new guests per IP per day, and a global
 `DAILY_CREDIT_CAP`. Hitting one returns a clear message; the product never
 invents a result to cover for being out of capacity.

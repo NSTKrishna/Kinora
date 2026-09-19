@@ -5,13 +5,13 @@ import { IMAGE_SIZES, type ImageSizeId } from "@/lib/models";
 /**
  * The mock provider. Development and demos cost nothing.
  *
- * It is deliberately stateless: everything needed to answer status() and
- * result() is encoded in the request id, so it behaves identically across
- * serverless invocations where a module-level map would not survive.
+ * It is deliberately stateless: everything status() and result() need is
+ * encoded in the request id, so it behaves identically across serverless
+ * invocations where a module-level map would not survive.
  *
- *   mock:<mode>:<startedAtMs>:<count>:<nonce>
+ *   mock:<base64url json>
  *
- * Prompts can steer it, which is how failure and safety paths get exercised
+ * Prompts steer it, which is how the failure and safety paths get exercised
  * without burning provider credits:
  *   [[fail]] → the job fails    [[nsfw]] → flagged    [[slow]] → 20s render
  */
@@ -22,10 +22,29 @@ const SLOW_RUNNING_MS = 20_000;
 
 type MockMode = "ok" | "fail" | "nsfw" | "slow";
 
+type MockTicket = {
+  mode: MockMode;
+  startedAt: number;
+  count: number;
+  kind: "image" | "video";
+  aspect: string;
+  size: ImageSizeId;
+  durationMs?: number;
+  nonce: string;
+};
+
 export const MOCK_DIRECTIVES: Record<Exclude<MockMode, "ok">, string> = {
   fail: "[[fail]]",
   nsfw: "[[nsfw]]",
   slow: "[[slow]]",
+};
+
+/** Mock clips, rendered by us with ffmpeg. No third-party media ships here. */
+const MOCK_CLIPS: Record<string, { url: string; width: number; height: number }> = {
+  "16:9": { url: "/mock/ember-16x9.mp4", width: 640, height: 360 },
+  "9:16": { url: "/mock/dusk-9x16.mp4", width: 360, height: 640 },
+  "1:1": { url: "/mock/fog-1x1.mp4", width: 480, height: 480 },
+  auto: { url: "/mock/amber-16x9.mp4", width: 640, height: 360 },
 };
 
 function modeFromPrompt(prompt: string): MockMode {
@@ -36,18 +55,30 @@ function modeFromPrompt(prompt: string): MockMode {
   return "ok";
 }
 
-function parseRequestId(requestId: string) {
-  const [, mode, startedAt, count, nonce] = requestId.split(":");
-  return {
-    mode: (mode ?? "ok") as MockMode,
-    startedAt: Number(startedAt ?? 0),
-    count: Math.max(1, Number(count ?? 1)),
-    nonce: nonce ?? "0",
-  };
+function encode(ticket: MockTicket): string {
+  const json = JSON.stringify(ticket);
+  const base64 = btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `mock:${base64}`;
 }
 
-function elapsed(startedAt: number) {
-  return Date.now() - startedAt;
+function decode(requestId: string): MockTicket {
+  const fallback: MockTicket = {
+    mode: "ok",
+    startedAt: 0,
+    count: 1,
+    kind: "image",
+    aspect: "1:1",
+    size: "square_hd",
+    nonce: "0",
+  };
+
+  const payload = requestId.slice("mock:".length);
+  try {
+    const padded = payload.replace(/-/g, "+").replace(/_/g, "/");
+    return { ...fallback, ...(JSON.parse(atob(padded)) as Partial<MockTicket>) };
+  } catch {
+    return fallback;
+  }
 }
 
 function runningFor(mode: MockMode) {
@@ -57,16 +88,25 @@ function runningFor(mode: MockMode) {
 export const mockProvider: GenerationProvider = {
   name: "mock",
 
-  async submit({ params }: SubmitArgs) {
-    const mode = modeFromPrompt(String(params.prompt ?? ""));
-    const nonce = Math.random().toString(36).slice(2, 10);
-    const count = Number(params.num_images ?? 1);
-    return { providerRequestId: `mock:${mode}:${Date.now()}:${count}:${nonce}` };
+  async submit({ model, params }: SubmitArgs) {
+    const duration = Number(params.duration ?? 0);
+    return {
+      providerRequestId: encode({
+        mode: modeFromPrompt(String(params.prompt ?? "")),
+        startedAt: Date.now(),
+        count: Number(params.num_images ?? 1),
+        kind: model.kind,
+        aspect: String(params.aspect_ratio ?? "1:1"),
+        size: (params.image_size as ImageSizeId) ?? "square_hd",
+        durationMs: duration ? duration * 1000 : undefined,
+        nonce: Math.random().toString(36).slice(2, 10),
+      }),
+    };
   },
 
   async status(_model: AnyModel, providerRequestId: string): Promise<ProviderStatus> {
-    const { mode, startedAt } = parseRequestId(providerRequestId);
-    const age = elapsed(startedAt);
+    const { mode, startedAt } = decode(providerRequestId);
+    const age = Date.now() - startedAt;
 
     if (age < QUEUED_MS) return { state: "queued", queuePosition: 1 };
     if (age < runningFor(mode)) return { state: "running" };
@@ -80,18 +120,31 @@ export const mockProvider: GenerationProvider = {
     return { state: "completed" };
   },
 
-  async result(model: AnyModel, providerRequestId: string): Promise<ProviderResult> {
-    const { mode, nonce, count } = parseRequestId(providerRequestId);
-    if (mode === "nsfw") return { assets: [], flagged: true };
+  async result(_model: AnyModel, providerRequestId: string): Promise<ProviderResult> {
+    const ticket = decode(providerRequestId);
+    if (ticket.mode === "nsfw") return { assets: [], flagged: true };
 
-    // Sample outputs are generated by us, on our own domain — nothing borrowed.
-    const size = (model.kind === "image" ? "square_hd" : "landscape_16_9") as ImageSizeId;
-    const { width, height } = IMAGE_SIZES[size];
+    if (ticket.kind === "video") {
+      const clip = MOCK_CLIPS[ticket.aspect] ?? MOCK_CLIPS.auto;
+      return {
+        assets: [
+          {
+            kind: "video",
+            url: clip.url,
+            width: clip.width,
+            height: clip.height,
+            durationMs: ticket.durationMs ?? 5_000,
+          },
+        ],
+      };
+    }
 
+    const { width, height } = IMAGE_SIZES[ticket.size] ?? IMAGE_SIZES.square_hd;
     return {
-      assets: Array.from({ length: count }, (_, index) => ({
+      assets: Array.from({ length: ticket.count }, (_, index) => ({
         kind: "image" as const,
-        url: `/api/mock/media/${nonce}-${index}.svg?w=${width}&h=${height}`,
+        // Sample stills are generated by us, on our own domain.
+        url: `/api/mock/media/${ticket.nonce}-${index}.svg?w=${width}&h=${height}`,
         width,
         height,
       })),

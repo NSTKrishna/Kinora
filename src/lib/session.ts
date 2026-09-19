@@ -70,10 +70,18 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export const SESSION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  sameSite: "lax",
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-  maxAge: SESSION_MAX_AGE,
-} as const;
+/**
+ * `secure` follows the actual request, not NODE_ENV: a production build served
+ * over http (a local preview, a staging box without TLS) would otherwise set a
+ * Secure cookie the browser never sends back, handing every request a brand new
+ * guest and quietly breaking the whole guest-first promise.
+ */
+export function sessionCookieOptions(isHttps: boolean) {
+  return {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isHttps,
+    path: "/",
+    maxAge: SESSION_MAX_AGE,
+  } as const;
+}

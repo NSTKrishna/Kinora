@@ -2,9 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import {
   SESSION_COOKIE,
-  SESSION_COOKIE_OPTIONS,
   createSessionToken,
   readSessionToken,
+  sessionCookieOptions,
 } from "@/lib/session";
 
 /**
@@ -25,7 +25,11 @@ export async function middleware(request: NextRequest) {
   // request already sees the session instead of waiting for the next one.
   request.cookies.set(SESSION_COOKIE, token);
   const response = NextResponse.next({ request });
-  response.cookies.set(SESSION_COOKIE, token, SESSION_COOKIE_OPTIONS);
+
+  // Behind Vercel's proxy the inbound URL is http; x-forwarded-proto is truth.
+  const proto = request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol;
+  response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions(proto.startsWith("https")));
+
   return response;
 }
 

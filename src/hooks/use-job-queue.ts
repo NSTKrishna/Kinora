@@ -2,9 +2,10 @@
 
 import * as React from "react";
 
+import type { JobWithAssets } from "@/lib/queries";
 import type { AssetView, JobView } from "@/lib/serialize";
 
-export type QueuedJob = JobView & { assets: AssetView[] };
+export type QueuedJob = JobWithAssets;
 
 const POLL_START_MS = 2_000;
 const POLL_MAX_MS = 10_000;
@@ -12,20 +13,36 @@ const POLL_BACKOFF = 1.25;
 
 const ACTIVE = new Set(["queued", "running"]);
 
+export function isActiveStatus(status: string) {
+  return ACTIVE.has(status);
+}
+
 export type SubmitResult = { ok: true } | { ok: false; code: string; message: string };
+
+export type FinishedJob = { job: JobView; assets: AssetView[] };
 
 /**
  * Owns the render queue on the client.
  *
- * Cards appear the moment you hit Generate and are updated by polling every
- * active job. The interval backs off while nothing changes and snaps back to
- * 2s on any change, so a fast render still feels immediate without hammering
- * the server during a slow one.
+ * It starts from whatever the server handed over, so a refresh mid-render picks
+ * up the same jobs rather than losing them. Cards appear the moment you hit
+ * Generate, and the poll backs off while nothing changes and snaps back to 2s
+ * on any change — a fast render still feels immediate without hammering the
+ * server during a slow one.
  */
-export function useJobQueue(initialBalance: number | null) {
-  const [jobs, setJobs] = React.useState<QueuedJob[]>([]);
+export function useJobQueue(
+  initialBalance: number | null,
+  initialJobs: QueuedJob[] = [],
+  onFinished?: (finished: FinishedJob) => void,
+) {
+  const [jobs, setJobs] = React.useState<QueuedJob[]>(initialJobs);
   const [balance, setBalance] = React.useState<number | null>(initialBalance);
   const delayRef = React.useRef(POLL_START_MS);
+
+  const finishedRef = React.useRef(onFinished);
+  React.useEffect(() => {
+    finishedRef.current = onFinished;
+  }, [onFinished]);
 
   const activeIds = jobs.filter((job) => ACTIVE.has(job.status)).map((job) => job.id);
   const activeKey = activeIds.join(",");
@@ -33,14 +50,20 @@ export function useJobQueue(initialBalance: number | null) {
   const applyJob = React.useCallback((job: JobView, assets: AssetView[]) => {
     setJobs((current) => {
       let changed = false;
+      let completed = false;
+
       const next = current.map((existing) => {
         if (existing.id !== job.id) return existing;
         if (existing.status !== job.status || assets.length !== existing.assets.length) {
           changed = true;
         }
+        // Only announce the moment a job stops being active.
+        if (ACTIVE.has(existing.status) && !ACTIVE.has(job.status)) completed = true;
         return { ...existing, ...job, assets };
       });
+
       if (changed) delayRef.current = POLL_START_MS;
+      if (completed) finishedRef.current?.({ job, assets });
       return next;
     });
   }, []);
