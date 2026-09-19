@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Kinora runs dark-only: one near-black surface stack, one accent. */
+  :root {
+    --background: 240 6% 4%;
+    --foreground: 40 12% 96%;
+
+    --card: 240 5% 7%;
+    --card-foreground: 40 12% 96%;
+
+    --popover: 240 6% 6%;
+    --popover-foreground: 40 12% 96%;
+
+    /* Accent: Kinora ember. The only saturated colour in the system. */
+    --primary: 18 95% 58%;
+    --primary-foreground: 24 40% 6%;
+
+    --secondary: 240 5% 12%;
+    --secondary-foreground: 40 12% 96%;
+
+    --muted: 240 5% 11%;
+    --muted-foreground: 240 5% 62%;
+
+    --accent: 240 5% 14%;
+    --accent-foreground: 40 12% 96%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 40 12% 96%;
+
+    --border: 240 5% 15%;
+    --input: 240 5% 15%;
+    --ring: 18 95% 58%;
+
+    --radius: 0.875rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      "ss01" on,
+      "cv01" on;
+  }
+
+  ::selection {
+    @apply bg-primary/30 text-foreground;
+  }
+}
+
+@layer components {
+  /* Eyebrow / label type: small, spaced, muted. */
+  .eyebrow {
+    @apply text-micro font-medium uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  /* Media-first tiles sit on a subtle raised surface with a hairline edge. */
+  .surface {
+    @apply rounded-lg border border-border/80 bg-card;
+  }
+
+  .glow-ember {
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.25),
+      0 18px 60px -24px hsl(var(--primary) / 0.55);
+  }
+
+  /* Cinematic vignette + grain for hero sections. */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.35;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

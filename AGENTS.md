@@ -7,6 +7,7 @@
 Kinora is a creative studio for AI images and videos — an original product inspired by the Higgsfield AI category, not a clone of it.
 
 This is a 24-hour build. Judged on:
+
 1. Working product shipped fast
 2. Product judgement
 3. UX / UI
@@ -32,6 +33,7 @@ Extras once the loop is solid: Effects presets, mini Cinema Studio, credits.
 ## Scope
 
 **Build**
+
 - Guest-first accounts (usable before sign-up)
 - Model registry
 - Async jobs
@@ -43,10 +45,12 @@ Extras once the loop is solid: Effects presets, mini Cinema Studio, credits.
 - Explore feed
 
 **Stub**
+
 - Characters — reference images only, no training
 - Billing — demo only, no payments
 
 **Cut (do not build)**
+
 - Agents, canvas, audio/lipsync, plugins, enterprise features, mobile app
 
 ## Rules
