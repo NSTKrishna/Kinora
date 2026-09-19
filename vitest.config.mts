@@ -7,7 +7,11 @@ config({ path: ".env.local" });
 
 export default defineConfig({
   resolve: {
-    alias: { "@": resolve(__dirname, "./src") },
+    alias: {
+      "@": resolve(__dirname, "./src"),
+      // `server-only` throws outside a React server build; the suite is Node.
+      "server-only": resolve(__dirname, "./tests/stubs/server-only.ts"),
+    },
   },
   test: {
     environment: "node",

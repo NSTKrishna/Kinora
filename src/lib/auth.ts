@@ -1,12 +1,13 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { eq } from "drizzle-orm";
 
 import { getDb, isDatabaseConfigured } from "@/db";
 import { users, type User } from "@/db/schema";
 import { SESSION_COOKIE, readSessionToken } from "@/lib/session";
 import { grantStarter } from "@/lib/credits";
+import { hashIp } from "@/lib/guards";
 
 /**
  * The current visitor, guest or not.
@@ -33,7 +34,7 @@ export async function getCurrentUser(): Promise<User | null> {
   // idempotent, so two parallel renders cannot double-grant.
   const [created] = await db
     .insert(users)
-    .values({ id: userId, isGuest: true })
+    .values({ id: userId, isGuest: true, signupIpHash: await currentIpHash() })
     .onConflictDoNothing()
     .returning();
 
@@ -50,4 +51,16 @@ export async function requireCurrentUser(): Promise<User> {
   const user = await getCurrentUser();
   if (!user) throw new Error("No session");
   return user;
+}
+
+/** Loopback is everyone on a dev machine; rate-limiting it only hurts us. */
+const UNTRACKED_IPS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"]);
+
+/** Best-effort: behind a proxy there may be no usable address. */
+export async function currentIpHash(): Promise<string | null> {
+  const store = await headers();
+  const forwarded = store.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const ip = forwarded || store.get("x-real-ip") || null;
+  if (!ip || UNTRACKED_IPS.has(ip)) return null;
+  return hashIp(ip);
 }

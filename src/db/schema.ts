@@ -41,15 +41,21 @@ export const ACTIVE_JOB_STATUSES = ["queued", "running"] as const;
 
 /* ------------------------------------------------------------------ users */
 
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  /** Reserved for Clerk. Guests have none; filled in when an account is claimed. */
-  clerkId: text("clerk_id").unique(),
-  email: text("email"),
-  name: text("name"),
-  isGuest: boolean("is_guest").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Reserved for Clerk. Guests have none; filled in when an account is claimed. */
+    clerkId: text("clerk_id").unique(),
+    email: text("email"),
+    name: text("name"),
+    isGuest: boolean("is_guest").notNull().default(true),
+    /** Salted hash, never a raw IP. Only used to rate-limit new guests. */
+    signupIpHash: text("signup_ip_hash"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("users_signup_ip_created_idx").on(table.signupIpHash, table.createdAt)],
+);
 
 /* ---------------------------------------------------------- credit ledger */
 

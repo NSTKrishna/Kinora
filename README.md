@@ -38,6 +38,25 @@ carries an idempotency key (`job:<id>:charge`, `job:<id>:refund`, `daily:<user>:
 and charges take a `SELECT ... FOR UPDATE` lock on the user row so concurrent renders
 cannot overdraw.
 
+## Generation
+
+`POST /api/generate` validates against the model's zod schema, prices the job
+server-side, runs a cheap safety pre-check, checks the capacity guards, charges
+credits and only then submits to the provider. `GET /api/jobs/[id]` reconciles
+with the provider while a job is active; `POST /api/jobs/[id]/cancel` stops one;
+`POST /api/webhooks/fal` takes the provider's word once its ED25519 signature
+verifies. Polling and webhooks both end in one `transition()`, which is the only
+place a job changes status — so assets are saved once and credits come back
+exactly once, whichever arrives first.
+
+Guards: 2 active jobs per user, 8 new guests per IP per day, and a global
+`DAILY_CREDIT_CAP`. Hitting one returns a clear message; the product never
+invents a result to cover for being out of capacity.
+
+With `PROVIDER=mock`, prompt directives drive the paths that are otherwise hard
+to reach: `[[fail]]` fails the job, `[[nsfw]]` gets it refused, `[[slow]]` takes
+20 seconds. All three refund.
+
 ## Sessions
 
 Guest-first. Middleware issues a signed, httpOnly cookie on the first request;
