@@ -13,7 +13,9 @@ import { SEED_ASSETS } from "@/lib/seed";
  * is explicit that gradients belong in photography, never in the interface.
  *
  * The clip is muted, looped and `playsInline`, so it behaves as a background
- * rather than as content: no controls, no sound, nothing to dismiss. It is not
+ * rather than as content: no controls, no sound, nothing to dismiss. Its
+ * poster frame carries the composition until the video decodes, and remains
+ * the whole hero when the OS asks for reduced motion. It is not
  * announced to assistive tech either, because the headline already carries the
  * meaning and the motion carries none.
  */
@@ -43,6 +45,7 @@ export function CinematicHero() {
       <video
         ref={ref}
         src={HERO.url}
+        poster={HERO.posterUrl ?? undefined}
         muted
         loop
         playsInline

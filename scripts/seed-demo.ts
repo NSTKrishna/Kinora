@@ -2,18 +2,29 @@
  * Renders the demo seed set, once.
  *
  * Explore is a community feed, and a community feed with nothing in it reads as
- * broken rather than new. This renders ~20 curated prompts through whatever
- * provider is configured, downloads the results into `public/seed/`, transcodes
- * them to something a landing page can afford, and writes `src/lib/seed.ts`.
+ * broken rather than new. This fills `public/seed/` from one of three sources,
+ * transcodes everything to something a landing page can afford, and writes
+ * `src/lib/seed.ts`.
  *
- *   PROVIDER=mock pnpm seed:demo     # free, Kinora's own sample media
- *   PROVIDER=fal  pnpm seed:demo     # real renders, real money, run once
+ *   PROVIDER=mock  pnpm seed:demo    # free, Kinora's own gradient plates
+ *   PROVIDER=fal   pnpm seed:demo    # real renders, real money, run once
+ *   SOURCE=pexels  pnpm seed:demo    # real footage, free, curated by hand
+ *
+ * `SOURCE=pexels` bypasses the provider entirely and downloads the pinned
+ * stock picks in scripts/pexels.ts. It exists because the mock's gradients are
+ * not media — nothing is in focus because there is nothing to focus on — and a
+ * judged build cannot lead with that. What it produces is showcase media for
+ * Explore, the hero and the effect rail. Generated job results are untouched:
+ * those still come from the provider, so the product never shows stock footage
+ * as something a model rendered.
  *
  * The output is committed, so the deployed site never depends on this having
- * run. Re-running with PROVIDER=fal replaces the placeholders in place.
+ * run.
  *
- * Budget: images become webp, clips are capped at 6 seconds and 3MB. ffmpeg
- * must be on PATH.
+ * Budget: images become webp at up to 2048px, clips are capped at 8 seconds
+ * and 4MB at up to 1080p. Every clip also gets a poster frame, because a video
+ * with no `poster` shows black until it decodes and that reads as broken.
+ * ffmpeg must be on PATH.
  */
 import { execFile } from "node:child_process";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -28,10 +39,30 @@ const run = promisify(execFile);
 
 const OUT_DIR = join(process.cwd(), "public", "seed");
 const MODULE_PATH = join(process.cwd(), "src", "lib", "seed.ts");
-const MAX_VIDEO_BYTES = 3 * 1024 * 1024;
-const MAX_VIDEO_SECONDS = 6;
+
+/**
+ * Budget. The old caps (720p, 3MB, CRF 30) were set when every clip was a
+ * gradient plate, where detail could not survive because there was none. Real
+ * footage has detail worth keeping, so the ceiling moves to 1080p and the
+ * quality target to CRF 25 — roughly 1-3MB for eight seconds of this
+ * material, which a landing page can still afford. The first pass at CRF 23
+ * put two water-heavy shots over 8MB on their own; high-entropy footage needs
+ * the hard ceiling below, not just a quality target.
+ */
+const MAX_VIDEO_BYTES = 4 * 1024 * 1024;
+const MAX_VIDEO_SECONDS = 8;
+const MAX_VIDEO_SHORT_EDGE = 1080;
+const VIDEO_CRF = 25;
+const MAX_IMAGE_WIDTH = 2048;
+const WEBP_QUALITY = 86;
+/** Poster frames are the first thing anyone sees, so they are not thumbnails. */
+const POSTER_QUALITY = 5;
+
 const POLL_MS = 2_000;
 const GIVE_UP_MS = 5 * 60 * 1000;
+
+/** `pexels` skips the provider; anything else runs the configured one. */
+const SOURCE = process.env.SOURCE ?? "provider";
 
 type Recipe = {
   slug: string;
@@ -194,6 +225,10 @@ const IMAGE_SIZE = {
 } as const;
 
 async function main() {
+  await mkdir(OUT_DIR, { recursive: true });
+
+  if (SOURCE === "pexels") return seedFromPexels();
+
   const { getProvider, providerFor, providerMode } = await import("@/lib/providers");
   const { getModel } = await import("@/lib/models");
 
@@ -204,8 +239,6 @@ async function main() {
     console.log("This spends real money. Ctrl-C now if that was not the intention.\n");
     await new Promise((done) => setTimeout(done, 4000));
   }
-
-  await mkdir(OUT_DIR, { recursive: true });
 
   const entries: SeedEntry[] = [];
 
@@ -256,10 +289,12 @@ async function main() {
         kind: recipe.kind,
         aspect: recipe.aspect,
         url: `/seed/${file.name}`,
+        posterUrl: file.posterName ? `/seed/${file.posterName}` : null,
         width: asset.width ?? file.width,
         height: asset.height ?? file.height,
         durationMs: asset.durationMs ?? null,
         modelId,
+        credit: null,
         bytes: file.bytes,
       });
 
@@ -270,6 +305,144 @@ async function main() {
   }
 
   await writeModule(entries, name);
+  report(entries);
+}
+
+/**
+ * The stock path. No provider, no polling, no spend — each recipe resolves to
+ * the Pexels asset pinned for its slug and takes the same transcode as
+ * everything else, so the output shape is identical whichever source ran.
+ */
+async function seedFromPexels() {
+  const { resolvePexels } = await import("./pexels");
+
+  console.log(`\nSeeding ${RECIPES.length} slots from Pexels (curated, pinned by id).`);
+  console.log("Showcase media only — job results still come from the provider.\n");
+
+  const entries: SeedEntry[] = [];
+
+  for (const recipe of RECIPES) {
+    process.stdout.write(`  ${recipe.slug.padEnd(18)} `);
+
+    try {
+      const source = await resolvePexels(recipe.slug, recipe.kind);
+      const file = await materialise(recipe, source.downloadUrl);
+
+      entries.push({
+        slug: recipe.slug,
+        prompt: recipe.prompt,
+        kind: recipe.kind,
+        aspect: recipe.aspect,
+        url: `/seed/${file.name}`,
+        posterUrl: file.posterName ? `/seed/${file.posterName}` : null,
+        // The transcode decides the final pixels, so probe wins over the
+        // source dimensions — otherwise the grid reserves the wrong box and
+        // every tile shifts once the file lands.
+        width: file.width,
+        height: file.height,
+        durationMs: file.durationMs ?? source.durationMs,
+        modelId: null,
+        credit: source.credit,
+        bytes: file.bytes,
+      });
+
+      console.log(`ok  ${(file.bytes / 1024).toFixed(0)}kB  ${file.width}x${file.height}`);
+    } catch (error) {
+      console.log(`SKIPPED (${error instanceof Error ? error.message : String(error)})`);
+    }
+  }
+
+  await writeModule(entries, "pexels");
+  await seedEffectPreviews();
+  report(entries);
+}
+
+/**
+ * Effect previews.
+ *
+ * The effect rail is the first thing on the landing page after the hero, and
+ * it was showing the same gradient plate eight times. These are the clips that
+ * sell each effect — deliberately NOT `EffectDefinition.exampleUrl`, which the
+ * mock provider returns as a job result and which therefore has to stay media
+ * we made ourselves. See PEXELS_EFFECT_PICKS.
+ */
+async function seedEffectPreviews() {
+  const { resolvePexels, PEXELS_EFFECT_PICKS } = await import("./pexels");
+
+  const dir = join(OUT_DIR, "effects");
+  await mkdir(dir, { recursive: true });
+
+  console.log(`\nEffect previews (${Object.keys(PEXELS_EFFECT_PICKS).length}):`);
+
+  const previews: Record<
+    string,
+    { url: string; posterUrl: string; credit: { author: string; url: string } }
+  > = {};
+
+  for (const slug of Object.keys(PEXELS_EFFECT_PICKS)) {
+    process.stdout.write(`  ${slug.padEnd(18)} `);
+    try {
+      const source = await resolvePexels(slug, "video", PEXELS_EFFECT_PICKS);
+
+      const raw = join(dir, `.${slug}.src`);
+      await writeFile(raw, await fetchBytes(source.downloadUrl));
+      const clip = join(dir, `${slug}.mp4`);
+      await encodeVideo(raw, clip);
+      await encodePoster(clip, join(dir, `${slug}-poster.jpg`));
+      await rm(raw, { force: true });
+
+      previews[slug] = {
+        url: `/seed/effects/${slug}.mp4`,
+        posterUrl: `/seed/effects/${slug}-poster.jpg`,
+        credit: source.credit,
+      };
+
+      const { size } = await stat(clip);
+      console.log(`ok  ${(size / 1024).toFixed(0)}kB`);
+    } catch (error) {
+      console.log(`SKIPPED (${error instanceof Error ? error.message : String(error)})`);
+    }
+  }
+
+  // A run where every fetch failed — a rate limit, a dropped connection —
+  // must not overwrite a good module with an empty one. That happened once
+  // during development and the failure was silent: the build succeeded and
+  // every card quietly fell back to the old placeholder.
+  if (Object.keys(previews).length === 0) {
+    console.log("  no previews resolved; keeping the existing module");
+    return;
+  }
+
+  const path = join(process.cwd(), "src", "lib", "effect-previews.ts");
+  await writeFile(
+    path,
+    `/**
+ * Effect preview clips — generated, do not edit by hand.
+ *
+ * Written by \`scripts/seed-demo.ts\` on ${new Date().toISOString().slice(0, 10)}.
+ *
+ * These illustrate the effect cards and the runner's reference tile. They are
+ * licensed footage, not model output, and every surface that shows one credits
+ * it. The effect's own \`exampleUrl\` is a separate asset and stays ours,
+ * because the mock provider returns it as a generated result.
+ */
+
+export type EffectPreview = {
+  url: string;
+  posterUrl: string;
+  credit: { author: string; url: string };
+};
+
+export const EFFECT_PREVIEWS: Record<string, EffectPreview> = ${JSON.stringify(previews, null, 2)};
+
+export function effectPreview(slug: string): EffectPreview | null {
+  return EFFECT_PREVIEWS[slug] ?? null;
+}
+`,
+  );
+}
+
+function report(entries: SeedEntry[]) {
   const total = entries.reduce((sum, entry) => sum + entry.bytes, 0);
   console.log(
     `\nWrote ${entries.length}/${RECIPES.length} entries to src/lib/seed.ts (${(total / 1024 / 1024).toFixed(2)}MB in public/seed/).`,
@@ -282,14 +455,18 @@ type SeedEntry = {
   kind: "image" | "video";
   aspect: Recipe["aspect"];
   url: string;
+  /** First frame of a clip, as a still. Null for images, which are their own. */
+  posterUrl: string | null;
   width?: number;
   height?: number;
   durationMs: number | null;
-  modelId: string;
+  /** Null when the media did not come from a model. */
+  modelId: string | null;
+  credit: { author: string; url: string } | null;
   bytes: number;
 };
 
-/** Fetch (or read) the provider's output and transcode it into public/seed/. */
+/** Fetch (or read) the source and transcode it into public/seed/. */
 async function materialise(recipe: Recipe, url: string) {
   const source = join(OUT_DIR, `.${recipe.slug}.src`);
   await writeFile(source, await fetchBytes(url));
@@ -297,16 +474,51 @@ async function materialise(recipe: Recipe, url: string) {
   const name = recipe.kind === "image" ? `${recipe.slug}.webp` : `${recipe.slug}.mp4`;
   const target = join(OUT_DIR, name);
 
+  let posterName: string | null = null;
+  let durationMs: number | null = null;
+
   if (recipe.kind === "image") {
     await encodeWebp(source, target);
   } else {
     await encodeVideo(source, target);
+    posterName = `${recipe.slug}-poster.jpg`;
+    await encodePoster(target, join(OUT_DIR, posterName));
+    durationMs = await probeDurationMs(target);
   }
 
   await rm(source, { force: true });
   const { size } = await stat(target);
   const { width, height } = await probe(target);
-  return { name, bytes: size, width, height };
+
+  // The poster ships to every visitor alongside the clip, so it counts.
+  const posterBytes = posterName ? (await stat(join(OUT_DIR, posterName))).size : 0;
+
+  return { name, posterName, bytes: size + posterBytes, width, height, durationMs };
+}
+
+/**
+ * The poster frame.
+ *
+ * Taken a beat in rather than at t=0: the first frame of a stock clip is often
+ * mid-fade or still settling, and a black poster is worse than none. Scaled to
+ * the clip's own dimensions so it swaps to video without a visible resize.
+ */
+async function encodePoster(clip: string, target: string) {
+  await run("ffmpeg", [
+    "-hide_banner",
+    "-loglevel",
+    "error",
+    "-y",
+    "-ss",
+    "0.5",
+    "-i",
+    clip,
+    "-frames:v",
+    "1",
+    "-q:v",
+    String(POSTER_QUALITY),
+    target,
+  ]);
 }
 
 /**
@@ -326,7 +538,7 @@ async function rasterise(source: string): Promise<string> {
 }
 
 /**
- * webp at quality 82 is visually clean and a fraction of a jpeg here.
+ * webp at quality 86 is visually clean and a fraction of a jpeg here.
  *
  * Homebrew's ffmpeg ships without a webp encoder, so the reliable path is
  * ffmpeg for the decode and resize, then cwebp for the encode. If neither is
@@ -345,13 +557,13 @@ async function encodeWebp(source: string, target: string) {
     "-i",
     raster,
     "-vf",
-    "scale='min(1280,iw)':-2",
+    `scale='min(${MAX_IMAGE_WIDTH},iw)':-2`,
     resized,
   ]);
   if (raster !== source) await rm(raster, { force: true });
 
   try {
-    await run("cwebp", ["-quiet", "-q", "82", resized, "-o", target]);
+    await run("cwebp", ["-quiet", "-q", String(WEBP_QUALITY), resized, "-o", target]);
   } catch {
     try {
       await run("ffmpeg", [
@@ -364,7 +576,7 @@ async function encodeWebp(source: string, target: string) {
         "-c:v",
         "libwebp",
         "-quality",
-        "82",
+        String(WEBP_QUALITY),
         target,
       ]);
     } catch {
@@ -387,9 +599,16 @@ async function encodeWebp(source: string, target: string) {
 }
 
 /**
- * Clips are capped at six seconds and 3MB. CRF 30 gets there for everything
- * here; if a busier shot does not, the bitrate is pinned on a second pass
- * rather than shipping a landing page that costs someone 8MB.
+ * Clips are capped at eight seconds and 4MB. CRF 23 gets there for most of
+ * this material; if a busier shot does not, the bitrate is pinned on a second
+ * pass rather than shipping a landing page that costs someone 20MB.
+ *
+ * The cap applies to the clip alone; the poster is counted separately in the
+ * totals, because both ship together and page weight is what actually matters.
+ *
+ * The ceiling is on the SHORT edge, not the width. Capping width alone left a
+ * 1080x1920 portrait clip at its full 1920 height — the vertical seeds were
+ * the largest files here while the landscape ones were being downscaled.
  */
 async function encodeVideo(source: string, target: string) {
   const common = [
@@ -407,10 +626,19 @@ async function encodeVideo(source: string, target: string) {
     "-pix_fmt",
     "yuv420p",
     "-vf",
-    "scale='min(1280,iw)':-2",
+    `scale='if(gt(iw,ih),-2,min(${MAX_VIDEO_SHORT_EDGE},iw))':'if(gt(iw,ih),min(${MAX_VIDEO_SHORT_EDGE},ih),-2)'`,
   ];
 
-  await run("ffmpeg", [...common, "-c:v", "libx264", "-crf", "30", "-preset", "slow", target]);
+  await run("ffmpeg", [
+    ...common,
+    "-c:v",
+    "libx264",
+    "-crf",
+    String(VIDEO_CRF),
+    "-preset",
+    "slow",
+    target,
+  ]);
 
   const { size } = await stat(target);
   if (size <= MAX_VIDEO_BYTES) return;
@@ -448,6 +676,25 @@ async function probe(file: string) {
   return { width, height };
 }
 
+/**
+ * The clip's real length after the transcode, which is what the UI must show.
+ * The source may have been longer than MAX_VIDEO_SECONDS, and a badge claiming
+ * 15s over a file that runs 8 is the seed lying about what it shipped.
+ */
+async function probeDurationMs(file: string): Promise<number | null> {
+  const { stdout } = await run("ffprobe", [
+    "-v",
+    "error",
+    "-show_entries",
+    "format=duration",
+    "-of",
+    "csv=p=0",
+    file,
+  ]);
+  const seconds = Number(stdout.trim());
+  return Number.isFinite(seconds) ? Math.round(seconds * 1000) : null;
+}
+
 /** Provider output is a URL; the mock's is a path on this very app. */
 async function fetchBytes(url: string): Promise<Buffer> {
   if (/^https?:\/\//i.test(url)) {
@@ -468,16 +715,31 @@ async function fetchBytes(url: string): Promise<Buffer> {
   return readFile(local);
 }
 
-async function writeModule(entries: SeedEntry[], provider: string) {
+async function writeModule(entries: SeedEntry[], source: string) {
+  // Same reasoning as the preview guard: a wholly failed run leaves the last
+  // good seed set in place rather than blanking Explore.
+  if (entries.length === 0) {
+    console.log("\nNo entries resolved; keeping the existing seed module.");
+    return;
+  }
+
+  const isStock = source === "pexels";
+
   const body = `/**
  * The demo seed set — generated, do not edit by hand.
  *
- * Written by \`scripts/seed-demo.ts\` on ${new Date().toISOString().slice(0, 10)} using the
- * \`${provider}\` provider. Explore falls back to these when there is not enough
+ * Written by \`scripts/seed-demo.ts\` on ${new Date().toISOString().slice(0, 10)} from the
+ * \`${source}\` source. Explore falls back to these when there is not enough
  * published work to fill the grid, so the landing page is never blank.
  *
- * Re-render them with:  PROVIDER=fal pnpm seed:demo
+ * Re-render them with:  SOURCE=pexels pnpm seed:demo   (free, curated stock)
+ *                       PROVIDER=fal   pnpm seed:demo   (real renders, real money)
  */
+
+export type SeedCredit = {
+  author: string;
+  url: string;
+};
 
 export type SeedAsset = {
   slug: string;
@@ -485,14 +747,28 @@ export type SeedAsset = {
   kind: "image" | "video";
   aspect: "16:9" | "9:16" | "1:1" | "4:5";
   url: string;
+  /** First frame of a clip, for the \`poster\` attribute. Null for images. */
+  posterUrl: string | null;
   width?: number;
   height?: number;
   durationMs: number | null;
-  modelId: string;
+  /** Null when the media did not come from a model. */
+  modelId: string | null;
+  /** Set for licensed stock, so the UI can credit it. Null for our own renders. */
+  credit: SeedCredit | null;
 };
 
-/** True when these came from a real provider rather than the mock. */
-export const SEED_IS_REAL = ${provider === "fal"};
+/** Where this set came from, so the UI can describe it honestly. */
+export const SEED_SOURCE = ${JSON.stringify(source)} as "mock" | "fal" | "pexels";
+
+/** True when these came from a real model rather than the mock placeholders. */
+export const SEED_IS_REAL = ${source === "fal"};
+
+/**
+ * True when the set is licensed footage rather than model output. Surfaces
+ * that show it must not imply a model made it.
+ */
+export const SEED_IS_STOCK = ${isStock};
 
 export const SEED_ASSETS: SeedAsset[] = ${JSON.stringify(
     entries.map(({ bytes: _bytes, ...rest }) => rest),

@@ -6,6 +6,7 @@ import { Coins, Wand2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { EffectView } from "@/lib/presets";
+import { effectPreview } from "@/lib/effect-previews";
 
 /**
  * One effect in the grid or the landing rail.
@@ -17,6 +18,10 @@ import type { EffectView } from "@/lib/presets";
  */
 export function EffectCard({ effect, className }: { effect: EffectView; className?: string }) {
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  // The preview sells the effect; `exampleUrl` is what the mock provider hands
+  // back as a result, so it is not interchangeable with this.
+  const preview = effectPreview(effect.slug);
+  const clipUrl = preview?.url ?? effect.exampleUrl;
   const start = () => {
     void videoRef.current?.play().catch(() => {});
   };
@@ -42,17 +47,19 @@ export function EffectCard({ effect, className }: { effect: EffectView; classNam
       )}
     >
       {/* The clip is the card. DESIGN.md keeps gradients out of the interface,
-          so the still frame under the loop is the video's own first frame —
-          `preload="metadata"` paints it without fetching the whole clip. */}
+          so the still under the loop is the clip's own poster frame — it paints
+          immediately, while `preload="none"` keeps a grid of eight cards from
+          costing a visitor megabytes before they have chosen anything. */}
       <div className="relative aspect-video w-full overflow-hidden bg-black">
-        {effect.exampleUrl ? (
+        {clipUrl ? (
           <video
             ref={videoRef}
-            src={effect.exampleUrl}
+            src={clipUrl}
+            poster={preview?.posterUrl}
             muted
             loop
             playsInline
-            preload="metadata"
+            preload="none"
             aria-hidden
             className="absolute inset-0 h-full w-full object-cover"
           />
