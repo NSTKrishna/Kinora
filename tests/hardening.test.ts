@@ -246,3 +246,22 @@ describe("timeouts and retries", () => {
     expect(calls).toBe(3);
   });
 });
+
+/* --------------------------------------------------------- error mapping */
+
+describe("error responses", () => {
+  it("maps a malformed JSON body to 400, not 500", async () => {
+    // `await request.json()` throws a SyntaxError. Reporting that as a 500
+    // tells the caller to retry something that will never work.
+    const { toResponse } = await import("@/lib/api");
+    const response = toResponse(new SyntaxError("Unexpected token n in JSON at position 1"));
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error.code).toBe("invalid_json");
+  });
+
+  it("still reports a genuine fault as a 500", async () => {
+    const { toResponse } = await import("@/lib/api");
+    expect(toResponse(new Error("connection reset")).status).toBe(500);
+  });
+});

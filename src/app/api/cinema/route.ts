@@ -14,7 +14,11 @@ export async function POST(request: Request) {
     const user = await getCurrentUser();
     if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);
 
-    const body = (await request.json().catch(() => ({}))) as { spec?: unknown; title?: string };
+    // An empty body means "start a blank sequence"; a malformed one is a bad
+    // request. Swallowing both would hand the caller a fresh empty project and
+    // a 200, so a save that lost everything would look like it worked.
+    const text = (await request.text()).trim();
+    const body = (text ? JSON.parse(text) : {}) as { spec?: unknown; title?: string };
     const spec = draftSpecSchema.parse(body.spec ?? defaultSpec());
 
     const project = await createProject(user.id, spec, body.title);

@@ -8,6 +8,9 @@ Built in 24 hours as an original product in the Higgsfield AI category. Not a cl
 
 ## Architecture
 
+A full map of the repository — data model, request flows, module ownership and
+where to change things — is in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ```mermaid
 flowchart TB
     Visitor(["Visitor — no account"])

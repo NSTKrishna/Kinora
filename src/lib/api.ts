@@ -24,6 +24,12 @@ export function isUuid(value: string): boolean {
 
 /** Turns the errors this app actually throws into honest HTTP responses. */
 export function toResponse(error: unknown) {
+  // A body that is not JSON is a bad request, not a fault on our side. Without
+  // this it reaches the generic handler and reports a 500, which tells the
+  // caller to retry something that will never work.
+  if (error instanceof SyntaxError) {
+    return apiError("invalid_json", "That request body is not valid JSON.", 400);
+  }
   if (error instanceof ZodError) {
     const first = error.issues[0];
     return apiError("invalid_input", first?.message ?? "That input is not valid.", 400);
