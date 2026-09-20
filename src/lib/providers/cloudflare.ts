@@ -18,11 +18,14 @@ import {
 /**
  * Cloudflare Workers AI — the free image path.
  *
- * Docs checked 2026-09-20: `@cf/black-forest-labs/flux-1-schnell` takes
- * `prompt`, `steps` (max 8) and `seed`, and returns ONE image inline as base64.
- * There is no width/height, no batch count and no image-to-image. Every account
- * gets 10,000 neurons a day for free, and a default 1024x1024 four-step render
- * costs ~57.6 of them — roughly 170 images a day, resetting daily, forever.
+ * `@cf/black-forest-labs/flux-1-schnell` takes `prompt` and `steps` (max 8)
+ * and NOTHING else — the input schema is closed, so any extra key (`seed`,
+ * `width`, `num_images`) is rejected with a 400/5006 rather than ignored. It
+ * returns ONE image inline as base64. There is no width/height, no batch count
+ * and no image-to-image, and no seed — renders are not reproducible, and a
+ * batch varies on its own. Every account gets 10,000 neurons a day for free,
+ * and a default 1024x1024 four-step render costs ~57.6 of them — roughly 170
+ * images a day, resetting daily, forever.
  *
  * Three things follow from that shape, and each one is handled here rather than
  * leaked into the rest of the app:
@@ -112,7 +115,7 @@ function describeFailure(status: number, body: CloudflareResponse | string): str
 }
 
 /** One image from Cloudflare, as raw PNG bytes. */
-async function renderOne(prompt: string, seed: number | undefined): Promise<Buffer> {
+async function renderOne(prompt: string): Promise<Buffer> {
   const { accountId, token } = credentials();
 
   const call = async () => {
@@ -120,10 +123,11 @@ async function renderOne(prompt: string, seed: number | undefined): Promise<Buff
       fetch(`${ENDPOINT}/${accountId}/ai/run/${MODEL_PATH}`, {
         method: "POST",
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        // `steps` is left at the model default of 4: schnell is distilled for
-        // few-step sampling, and more steps cost proportionally more neurons
-        // out of a fixed daily budget for very little visible gain.
-        body: JSON.stringify(seed === undefined ? { prompt } : { prompt, seed }),
+        // `prompt` alone: `steps` is left at the model default of 4 (schnell is
+        // distilled for few-step sampling, and more steps cost proportionally
+        // more neurons out of a fixed daily budget for very little visible
+        // gain), and nothing else may be sent — see the note at the top.
+        body: JSON.stringify({ prompt }),
       }),
       TIMEOUT_MS,
       "cloudflare render",
@@ -181,17 +185,16 @@ export const cloudflareProvider: GenerationProvider = {
     const prompt = String(params.prompt ?? "");
     const size = (params.image_size as ImageSizeId) ?? "square_hd";
     const count = Math.max(1, Math.min(4, Number(params.num_images ?? 1)));
-    const seed = params.seed === undefined ? undefined : Number(params.seed);
+    // `params.seed` is deliberately dropped: the endpoint has no seed and
+    // rejects one. A seed set in the Studio is honoured on the fal path only.
 
     try {
       // One call per image — the endpoint has no batch parameter. In parallel,
       // because four sequential four-step renders is a long time to hold a
-      // request open. Each gets its own seed so a batch is not four copies.
+      // request open. Each call samples fresh, so a batch is not four copies.
       const rendered = await Promise.all(
-        Array.from({ length: count }, (_, i) =>
-          renderOne(prompt, seed === undefined ? undefined : seed + i).then((png) =>
-            toRequestedFrame(png, size),
-          ),
+        Array.from({ length: count }, () =>
+          renderOne(prompt).then((png) => toRequestedFrame(png, size)),
         ),
       );
 
