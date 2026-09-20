@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { isDatabaseConfigured } from "@/db";
+import { isCloudinaryConfigured } from "@/lib/cloudinary";
 import { capacitySnapshot } from "@/lib/guards";
-import { countStuckJobs, STUCK_AFTER_MS } from "@/lib/jobs";
+import { countPlaceholderFallbacks, countStuckJobs, STUCK_AFTER_MS } from "@/lib/jobs";
 import { providerRouting } from "@/lib/providers";
 import { DAILY_CREDITS, STARTER_CREDITS } from "@/lib/credits";
 
@@ -28,12 +29,18 @@ export const dynamic = "force-dynamic";
 export default async function StatusPage() {
   const configured = isDatabaseConfigured();
 
-  const [capacity, stuck] = configured
-    ? await Promise.all([capacitySnapshot().catch(() => null), countStuckJobs().catch(() => 0)])
-    : [null, 0];
+  const routing = providerRouting();
+  const hybrid = routing.fallback === "mock";
+
+  const [capacity, stuck, fallbacks] = configured
+    ? await Promise.all([
+        capacitySnapshot().catch(() => null),
+        countStuckJobs().catch(() => 0),
+        hybrid ? countPlaceholderFallbacks().catch(() => 0) : Promise.resolve(0),
+      ])
+    : [null, 0, 0];
 
   const healthy = Boolean(capacity && capacity.remaining > 0);
-  const routing = providerRouting();
 
   return (
     <div className="container py-8">
@@ -120,19 +127,33 @@ export default async function StatusPage() {
           <dl className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-y-1.5 text-xs">
             <Row label="Stills" value={routing.image} />
             <Row label="Video" value={routing.video} />
+            {hybrid ? <Row label="If a provider fails" value="labelled placeholder" /> : null}
             <Row
               label="Database"
               value={configured ? (capacity ? "reachable" : "unreachable") : "unconfigured"}
             />
             <Row
               label="Uploads"
-              value={process.env.BLOB_READ_WRITE_TOKEN ? "configured" : "paste a URL instead"}
+              value={isCloudinaryConfigured() ? "cloudinary" : "paste a URL instead"}
             />
+            {hybrid ? <Row label="Placeholders served (24h)" value={String(fallbacks)} /> : null}
           </dl>
           {routing.mode === "mock" ? (
             <p className="mt-3 text-xs text-muted-foreground">
               The mock provider returns Kinora&apos;s own sample media after a short delay. Nothing
               is sent to a paid API and nothing is charged.
+            </p>
+          ) : null}
+          {hybrid ? (
+            <p
+              className={cn(
+                "mt-3 text-xs",
+                fallbacks > 0 ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              {fallbacks > 0
+                ? `${fallbacks} render${fallbacks === 1 ? "" : "s"} in the last 24 hours returned placeholder media instead of a provider's own output — every one badged as a placeholder wherever it appears. While this deployment stays in hybrid mode that means a provider has been refusing us; renders made earlier under PROVIDER=mock are counted here too.`
+                : "Hybrid mode: if a provider refuses us — an exhausted balance, a rejected key, an outage — the render returns a placeholder, badged as one, instead of failing. Nothing has needed it in the last 24 hours."}
             </p>
           ) : null}
         </div>
@@ -165,6 +186,9 @@ export default async function StatusPage() {
           Credits are taken before anything reaches a provider, and a render that fails, is refused,
           is cancelled or is abandoned is refunded exactly once. When the cap is reached the app
           says so and refuses the render — it never invents a result to hide it.
+          {hybrid
+            ? " In hybrid mode a provider outage returns a stand-in clip rather than an error, and every one of those is labelled a placeholder on the result, in your library and in Explore. A refused prompt still fails; only our own failures are stood in for."
+            : ""}
         </p>
       </div>
     </div>

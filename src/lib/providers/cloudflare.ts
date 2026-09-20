@@ -2,9 +2,11 @@ import sharp from "sharp";
 
 import { getDb } from "@/db";
 import { generatedMedia } from "@/db/schema";
+import { isCloudinaryConfigured, renderPublicId, uploadBytes } from "@/lib/cloudinary";
 import { IMAGE_SIZES, type ImageSizeId, type AnyModel } from "@/lib/models";
-import { retry, withTimeout } from "@/lib/retry";
+import { retry, TimeoutError, withTimeout } from "@/lib/retry";
 import {
+  isOperatorStatus,
   ProviderError,
   type GenerationProvider,
   type ProviderAsset,
@@ -46,6 +48,36 @@ const MODEL_PATH = "@cf/black-forest-labs/flux-1-schnell";
 const TIMEOUT_MS = 45_000;
 const WEBP_QUALITY = 82;
 
+/**
+ * A hosted result, encoded into the request id.
+ *
+ * The Postgres form packs ids as `cf:<uuid>:<w>x<h>,...`, which a URL cannot
+ * use — it is full of colons and slashes. So hosted results get their own
+ * prefix and a base64url payload, the same trick the mock provider uses to
+ * stay stateless across serverless invocations.
+ */
+const HOSTED_PREFIX = "cfc:";
+
+type HostedImage = { url: string; width?: number; height?: number };
+
+function encodeHosted(images: HostedImage[]): string {
+  const json = JSON.stringify(images);
+  const base64 = Buffer.from(json, "utf8").toString("base64url");
+  return `${HOSTED_PREFIX}${base64}`;
+}
+
+function decodeHosted(providerRequestId: string): HostedImage[] {
+  try {
+    const json = Buffer.from(providerRequestId.slice(HOSTED_PREFIX.length), "base64url").toString(
+      "utf8",
+    );
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? (parsed as HostedImage[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function isCloudflareConfigured(): boolean {
   return Boolean(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN);
 }
@@ -56,6 +88,7 @@ function credentials() {
   if (!accountId || !token) {
     throw new ProviderError(
       "CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are not set. Add both to .env.local, or set PROVIDER=mock.",
+      { operator: true },
     );
   }
   return { accountId, token };
@@ -107,6 +140,9 @@ async function renderOne(prompt: string, seed: number | undefined): Promise<Buff
     if (!response.ok || typeof body === "string" || !body.result?.image) {
       throw new ProviderError(
         `cloudflare render failed: ${describeFailure(response.status, body)}`,
+        // A daily-allowance exhaustion arrives here as 429, and a bad token as
+        // 403. Both are ours to fix, so hybrid mode can fall back.
+        { operator: isOperatorStatus(response.status) || response.status >= 500 },
       );
     }
 
@@ -147,39 +183,70 @@ export const cloudflareProvider: GenerationProvider = {
     const count = Math.max(1, Math.min(4, Number(params.num_images ?? 1)));
     const seed = params.seed === undefined ? undefined : Number(params.seed);
 
-    // One call per image — the endpoint has no batch parameter. In parallel,
-    // because four sequential four-step renders is a long time to hold a
-    // request open. Each gets its own seed so a batch is not four copies.
-    const rendered = await Promise.all(
-      Array.from({ length: count }, (_, i) =>
-        renderOne(prompt, seed === undefined ? undefined : seed + i).then((png) =>
-          toRequestedFrame(png, size),
+    try {
+      // One call per image — the endpoint has no batch parameter. In parallel,
+      // because four sequential four-step renders is a long time to hold a
+      // request open. Each gets its own seed so a batch is not four copies.
+      const rendered = await Promise.all(
+        Array.from({ length: count }, (_, i) =>
+          renderOne(prompt, seed === undefined ? undefined : seed + i).then((png) =>
+            toRequestedFrame(png, size),
+          ),
         ),
-      ),
-    );
+      );
 
-    const rows = await getDb()
-      .insert(generatedMedia)
-      .values(
-        rendered.map((image) => ({
-          userId: userId ?? null,
-          contentType: "image/webp",
-          width: image.width,
-          height: image.height,
-          bytes: image.bytes,
-        })),
-      )
-      .returning({
-        id: generatedMedia.id,
-        width: generatedMedia.width,
-        height: generatedMedia.height,
+      // Cloudinary is where images live when it is configured: a CDN URL costs
+      // the database nothing, and Neon's free tier is a bad place to keep
+      // megabytes of WebP. Without it, the bytes go in Postgres and are served
+      // by /api/media/[id] — the same path, one hop slower.
+      if (isCloudinaryConfigured()) {
+        const uploaded = await Promise.all(
+          rendered.map((image) =>
+            uploadBytes(image.bytes, {
+              publicId: renderPublicId(userId ?? "anonymous"),
+              contentType: "image/webp",
+            }).then((result) => ({
+              url: result.url,
+              width: result.width ?? image.width,
+              height: result.height ?? image.height,
+            })),
+          ),
+        );
+        return { providerRequestId: encodeHosted(uploaded) };
+      }
+
+      const rows = await getDb()
+        .insert(generatedMedia)
+        .values(
+          rendered.map((image) => ({
+            userId: userId ?? null,
+            contentType: "image/webp",
+            width: image.width,
+            height: image.height,
+            bytes: image.bytes,
+          })),
+        )
+        .returning({
+          id: generatedMedia.id,
+          width: generatedMedia.width,
+          height: generatedMedia.height,
+        });
+
+      // The request id carries the whole result, so status() and result() need
+      // no further state and behave identically across serverless invocations.
+      return {
+        providerRequestId: `cf:${rows.map((r) => `${r.id}:${r.width}x${r.height}`).join(",")}`,
+      };
+    } catch (error) {
+      // Same contract as the fal adapter: every failure leaves here as a
+      // ProviderError that says whose problem it is. A timeout never reaches a
+      // throw site that knows an HTTP status, so it is classified here.
+      if (error instanceof ProviderError) throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ProviderError(`cloudflare submit failed: ${message}`, {
+        operator: error instanceof TimeoutError,
       });
-
-    // The request id carries the whole result, so status() and result() need no
-    // further state and behave identically across serverless invocations.
-    return {
-      providerRequestId: `cf:${rows.map((r) => `${r.id}:${r.width}x${r.height}`).join(",")}`,
-    };
+    }
   },
 
   async status(): Promise<ProviderStatus> {
@@ -188,20 +255,22 @@ export const cloudflareProvider: GenerationProvider = {
   },
 
   async result(_model: AnyModel, providerRequestId: string): Promise<ProviderResult> {
-    const assets: ProviderAsset[] = providerRequestId
-      .slice("cf:".length)
-      .split(",")
-      .filter(Boolean)
-      .map((entry) => {
-        const [id, dims] = entry.split(":");
-        const [width, height] = (dims ?? "").split("x").map(Number);
-        return {
-          kind: "image" as const,
-          url: `/api/media/${id}`,
-          width: Number.isFinite(width) ? width : undefined,
-          height: Number.isFinite(height) ? height : undefined,
-        };
-      });
+    const assets: ProviderAsset[] = providerRequestId.startsWith(HOSTED_PREFIX)
+      ? decodeHosted(providerRequestId).map((image) => ({ kind: "image" as const, ...image }))
+      : providerRequestId
+          .slice("cf:".length)
+          .split(",")
+          .filter(Boolean)
+          .map((entry) => {
+            const [id, dims] = entry.split(":");
+            const [width, height] = (dims ?? "").split("x").map(Number);
+            return {
+              kind: "image" as const,
+              url: `/api/media/${id}`,
+              width: Number.isFinite(width) ? width : undefined,
+              height: Number.isFinite(height) ? height : undefined,
+            };
+          });
 
     if (!assets.length) throw new ProviderError("cloudflare returned no output");
     return { assets };

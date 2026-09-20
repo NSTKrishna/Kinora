@@ -141,7 +141,7 @@ export async function getPublicFeed(
     filter === "image" || filter === "video" ? ([filter] as const) : (["image", "video"] as const);
 
   const rows = await getDb()
-    .select({ asset: assets, presetSlug: jobs.presetSlug })
+    .select({ asset: assets, presetSlug: jobs.presetSlug, provider: jobs.provider })
     .from(assets)
     .leftJoin(jobs, eq(jobs.id, assets.jobId))
     .where(
@@ -162,6 +162,7 @@ export async function getPublicFeed(
     items: page.map((row) => ({
       ...serializeAsset(row.asset),
       presetSlug: row.presetSlug,
+      provider: row.provider,
       modelLabel: row.asset.modelId ? (getModel(row.asset.modelId)?.label ?? null) : null,
     })),
     nextCursor: hasMore ? page[page.length - 1].asset.createdAt.toISOString() : null,
@@ -171,7 +172,7 @@ export async function getPublicFeed(
 /** One public asset, for a shared link straight to the detail view. */
 export async function getPublicAsset(assetId: string): Promise<ExploreItem | null> {
   const [row] = await getDb()
-    .select({ asset: assets, presetSlug: jobs.presetSlug })
+    .select({ asset: assets, presetSlug: jobs.presetSlug, provider: jobs.provider })
     .from(assets)
     .leftJoin(jobs, eq(jobs.id, assets.jobId))
     .where(and(eq(assets.id, assetId), eq(assets.isPublic, true)))
@@ -181,6 +182,7 @@ export async function getPublicAsset(assetId: string): Promise<ExploreItem | nul
   return {
     ...serializeAsset(row.asset),
     presetSlug: row.presetSlug,
+    provider: row.provider,
     modelLabel: row.asset.modelId ? (getModel(row.asset.modelId)?.label ?? null) : null,
   };
 }

@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 
 import { getDb, isDatabaseConfigured } from "@/db";
+import { isCloudinaryConfigured } from "@/lib/cloudinary";
 import { capacitySnapshot } from "@/lib/guards";
-import { countStuckJobs, STUCK_AFTER_MS } from "@/lib/jobs";
+import { countPlaceholderFallbacks, countStuckJobs, STUCK_AFTER_MS } from "@/lib/jobs";
 import { providerRouting } from "@/lib/providers";
 
 export const runtime = "nodejs";
@@ -29,15 +30,28 @@ export async function GET() {
 
   try {
     await getDb().execute(sql`select 1`);
-    const [capacity, stuck] = await Promise.all([capacitySnapshot(), countStuckJobs()]);
+    const routing = providerRouting();
+    const [capacity, stuck, fallbacks] = await Promise.all([
+      capacitySnapshot(),
+      countStuckJobs(),
+      // Only meaningful in hybrid mode; in mock mode every job is a mock and
+      // the number would say nothing.
+      routing.fallback === "mock" ? countPlaceholderFallbacks() : Promise.resolve(0),
+    ]);
 
     return NextResponse.json({
       ok: capacity.remaining > 0,
       database: "ok",
-      providers: providerRouting(),
-      uploads: process.env.BLOB_READ_WRITE_TOKEN ? "configured" : "unconfigured",
+      providers: routing,
+      uploads: isCloudinaryConfigured() ? "cloudinary" : "unconfigured",
       capacity,
-      jobs: { stuck, stuckAfterMinutes: STUCK_AFTER_MS / 60_000 },
+      jobs: {
+        stuck,
+        stuckAfterMinutes: STUCK_AFTER_MS / 60_000,
+        // A monitor can alert on this: a non-zero count means a real provider
+        // has been refusing us and renders are quietly degraded.
+        placeholderFallbacks24h: fallbacks,
+      },
       latencyMs: Date.now() - started,
     });
   } catch (error) {

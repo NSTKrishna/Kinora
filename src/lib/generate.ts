@@ -8,7 +8,7 @@ import { charge, getBalance } from "@/lib/credits";
 import { assertCanGenerate } from "@/lib/guards";
 import { sweepOpportunistically, transition } from "@/lib/jobs";
 import type { AnyModel } from "@/lib/models";
-import { getProvider, providerFor } from "@/lib/providers";
+import { getProvider, providerFor, shouldServePlaceholder } from "@/lib/providers";
 import { checkPrompt } from "@/lib/safety";
 
 /**
@@ -99,6 +99,43 @@ export async function runGeneration(args: {
     console.error(
       `[kinora] ${providerName} submit failed for job ${job.id} (${model.id}): ${message}`,
     );
+
+    // Hybrid mode: when the failure is ours — an exhausted balance, a rejected
+    // key, a rate limit, an outage — serve a placeholder instead of taking the
+    // product down. The job row records `mock` as the provider, which is both
+    // what makes the result honest in the UI and what makes it work: every
+    // poll, result and cancel routes off `job.provider`, and the mock's ticket
+    // id carries its own state.
+    //
+    // A content refusal or an unrecognised error does not come through here.
+    if (shouldServePlaceholder(error)) {
+      try {
+        const { providerRequestId } = await getProvider("mock").submit({
+          model,
+          params,
+          jobId: job.id,
+          userId,
+          presetSlug: args.presetSlug,
+        });
+
+        const [claimed] = await getDb()
+          .update(jobs)
+          .set({ providerRequestId, provider: "mock" })
+          .where(eq(jobs.id, job.id))
+          .returning();
+
+        console.warn(
+          `[kinora] job ${job.id} fell back to a placeholder after ${providerName} failed`,
+        );
+
+        return { job: claimed ?? job, balance: await getBalance(userId) };
+      } catch (fallbackError) {
+        // The safety net tore. Fail the job normally so the credits come back
+        // rather than throwing an unrefunded error at the caller.
+        const reason = fallbackError instanceof Error ? fallbackError.message : "unknown";
+        console.error(`[kinora] placeholder fallback failed for job ${job.id}: ${reason}`);
+      }
+    }
 
     await transition(job, { status: "failed", error: message });
     throw new SubmitFailedError(message);

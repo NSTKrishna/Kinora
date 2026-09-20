@@ -3,6 +3,7 @@ import { fal } from "@fal-ai/client";
 import type { AnyModel } from "@/lib/models";
 import { retry, TimeoutError, withTimeout } from "@/lib/retry";
 import {
+  isOperatorStatus,
   ProviderError,
   type GenerationProvider,
   type ProviderAsset,
@@ -32,11 +33,28 @@ let configured = false;
 function client() {
   if (!configured) {
     const credentials = process.env.FAL_KEY;
-    if (!credentials) throw new ProviderError("FAL_KEY is not set");
+    // A missing key is our problem, not the request's: flag it so hybrid mode
+    // degrades to a placeholder instead of failing every render.
+    if (!credentials) throw new ProviderError("FAL_KEY is not set", { operator: true });
     fal.config({ credentials });
     configured = true;
   }
   return fal;
+}
+
+/**
+ * What fal calls this model.
+ *
+ * A model whose primary provider is Cloudflare still reaches this adapter,
+ * because `providerFor()` falls back to fal when Cloudflare has no
+ * credentials. Its `providerModelId` is a Cloudflare "@cf/..." path, which fal
+ * answers with a 404 — so the fallback silently failed every render until the
+ * registry started carrying both ids.
+ */
+function falModelId(model: AnyModel): string {
+  // `AnyModel` is a union over the registry, so an optional field needs the
+  // same `in` narrowing `modelProvider` uses.
+  return "falModelId" in model && model.falModelId ? model.falModelId : model.providerModelId;
 }
 
 /** fal reports safety refusals in several shapes; treat them all as flagged. */
@@ -87,7 +105,7 @@ export const falProvider: GenerationProvider = {
   async submit({ model, params, jobId, webhookUrl }: SubmitArgs) {
     try {
       const { request_id } = await withTimeout(
-        client().queue.submit(model.providerModelId, {
+        client().queue.submit(falModelId(model), {
           input: params,
           // The job id rides along so the webhook can find its row without a lookup table.
           webhookUrl: webhookUrl ? `${webhookUrl}?job=${jobId}` : undefined,
@@ -97,7 +115,11 @@ export const falProvider: GenerationProvider = {
       );
       return { providerRequestId: request_id };
     } catch (error) {
-      throw new ProviderError(`fal submit failed: ${describe(error)}`);
+      // Classify here: this wrap is the last point at which the fal client's
+      // structured ApiError (and its `status`) still exists.
+      throw new ProviderError(`fal submit failed: ${describe(error)}`, {
+        operator: isOperatorFailure(error),
+      });
     }
   },
 
@@ -106,7 +128,7 @@ export const falProvider: GenerationProvider = {
       const status = await retry(
         () =>
           withTimeout(
-            client().queue.status(model.providerModelId, { requestId: providerRequestId }),
+            client().queue.status(falModelId(model), { requestId: providerRequestId }),
             READ_TIMEOUT_MS,
             "fal status",
           ),
@@ -149,7 +171,7 @@ export const falProvider: GenerationProvider = {
       const response = await retry(
         () =>
           withTimeout(
-            client().queue.result(model.providerModelId, { requestId: providerRequestId }),
+            client().queue.result(falModelId(model), { requestId: providerRequestId }),
             READ_TIMEOUT_MS,
             "fal result",
           ),
@@ -168,7 +190,7 @@ export const falProvider: GenerationProvider = {
   async cancel(model: AnyModel, providerRequestId: string) {
     try {
       await withTimeout(
-        client().queue.cancel(model.providerModelId, { requestId: providerRequestId }),
+        client().queue.cancel(falModelId(model), { requestId: providerRequestId }),
         READ_TIMEOUT_MS,
         "fal cancel",
       );
@@ -181,6 +203,28 @@ export const falProvider: GenerationProvider = {
     }
   },
 };
+
+/**
+ * Is this fal's problem rather than this request's?
+ *
+ * Auth, billing and rate limits mean the account cannot render at all; an
+ * unreachable provider means we never got an answer. Both are operator
+ * failures, and hybrid mode serves a labelled placeholder for them.
+ *
+ * Anything else — 422 invalid params, a safety refusal, an unrecognised
+ * error — is a genuine answer about this request and must keep failing.
+ * Unknown errors failing is the deliberate safe default.
+ */
+export function isOperatorFailure(error: unknown): boolean {
+  // An inner error that already classified itself, e.g. a missing FAL_KEY.
+  if (error instanceof ProviderError) return error.operator;
+  if (isUnreachable(error)) return true;
+  // The fal client throws an ApiError carrying the HTTP status. Read it
+  // structurally rather than pattern-matching the rendered message, which
+  // could contain a number echoed back from the request.
+  const status = (error as { status?: unknown } | null | undefined)?.status;
+  return typeof status === "number" && isOperatorStatus(status);
+}
 
 /** Did we fail to ask, rather than get an answer we did not like? */
 function isUnreachable(error: unknown): boolean {
@@ -211,7 +255,10 @@ export function describe(error: unknown): string {
   if (typeof error === "string") return error;
   if (!(error instanceof Error)) {
     try {
-      return JSON.stringify(error);
+      // JSON.stringify returns undefined — not a string — for undefined, a
+      // function or a symbol, and every caller here expects a string it can
+      // call string methods on.
+      return JSON.stringify(error) ?? String(error);
     } catch {
       return String(error);
     }

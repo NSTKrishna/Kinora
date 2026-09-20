@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, lt } from "drizzle-orm";
+import { and, eq, gte, inArray, lt } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { assets as assetsTable, jobs, type Job } from "@/db/schema";
@@ -176,5 +176,30 @@ export async function countStuckJobs(now = new Date()): Promise<number> {
     .from(jobs)
     .where(and(inArray(jobs.status, [...ACTIVE_STATUSES]), lt(jobs.createdAt, cutoff)))
     .limit(100);
+  return rows.length;
+}
+
+/** How many renders returned placeholder media in the last 24 hours. */
+export const FALLBACK_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * A degradation nobody notices is the whole risk of hybrid mode: every render
+ * keeps "working" while the real provider has been dead for a day. This is the
+ * number that makes that visible on /status without reading the logs.
+ *
+ * It counts jobs the mock produced, which in a deployment that stays in hybrid
+ * mode are exactly the fallbacks. A database that has also served `PROVIDER=mock`
+ * traffic — any dev machine — counts those too, so /status says so rather than
+ * claiming every one was a provider refusing us.
+ *
+ * Capped, because the answer "a lot" is as actionable as an exact count.
+ */
+export async function countPlaceholderFallbacks(now = new Date()): Promise<number> {
+  const cutoff = new Date(now.getTime() - FALLBACK_WINDOW_MS);
+  const rows = await getDb()
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(and(eq(jobs.provider, "mock"), gte(jobs.createdAt, cutoff)))
+    .limit(500);
   return rows.length;
 }

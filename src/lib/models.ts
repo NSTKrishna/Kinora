@@ -82,13 +82,22 @@ export type ModelDefinition<TSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
   label: string;
   blurb: string;
   kind: "image" | "video";
-  /** What the provider calls it. */
+  /** What the provider named in `provider` calls it. */
   providerModelId: string;
   /**
    * Who runs it when PROVIDER is live. Defaults to fal. Cloudflare is free
    * within a daily allowance but only does plain text-to-image.
    */
   provider?: "fal" | "cloudflare";
+  /**
+   * What fal calls it, for a model whose primary provider is not fal.
+   *
+   * `providerFor()` falls back to fal when Cloudflare has no credentials, and
+   * that fallback is worthless without this: `providerModelId` then holds a
+   * Cloudflare "@cf/..." path, and sending one of those to fal is a 404
+   * ("Application black-forest-labs not found") on every single render.
+   */
+  falModelId?: string;
   schema: TSchema;
   fields: FieldSpec[];
   capabilities: ModelCapabilities;
@@ -222,6 +231,8 @@ export const MODELS = {
     // one — the dimensions are honest, the composition is a square's.
     providerModelId: "@cf/black-forest-labs/flux-1-schnell",
     provider: "cloudflare",
+    // The same weights, billed, for when Cloudflare is not configured.
+    falModelId: "fal-ai/flux/schnell",
     schema: schnellParams,
     capabilities: { referenceImages: false, startEndFrames: false },
     // $0.003/MP, billed rounded up — a 1024² still is 2MP to fal. One credit

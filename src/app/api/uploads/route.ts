@@ -1,63 +1,48 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
-import { getDb } from "@/db";
-import { assets } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { apiError } from "@/lib/api";
+import { apiError, toResponse } from "@/lib/api";
+import {
+  ALLOWED_UPLOAD_TYPES,
+  isCloudinaryConfigured,
+  MAX_UPLOAD_BYTES,
+  signedUpload,
+} from "@/lib/cloudinary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
-const ALLOWED = ["image/png", "image/jpeg", "image/webp", "image/avif"];
-
 /**
- * Uploads go straight from the browser to Vercel Blob. This route only mints a
- * scoped token and records the finished file — the bytes never pass through it,
- * so a big reference image cannot tie up a serverless function.
+ * Mints a one-shot signature so the browser can post a file straight to
+ * Cloudinary. The bytes never pass through this function, which is what keeps
+ * a 12MB phone photo working on Vercel — a serverless request body is capped
+ * at roughly 4.5MB on the Hobby plan.
+ *
+ * The signed public id carries the caller's own user id, and /api/assets will
+ * only record a URL whose path contains it. That is what stops this becoming a
+ * way to attach an arbitrary remote image to an account.
  */
-export async function POST(request: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);
-
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    return apiError(
-      "uploads_unavailable",
-      "Uploads are not configured on this deployment. Paste an image URL instead.",
-      503,
-    );
-  }
-
-  const body = (await request.json()) as HandleUploadBody;
-
+export async function POST() {
   try {
-    const result = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async () => ({
-        allowedContentTypes: ALLOWED,
-        maximumSizeInBytes: MAX_UPLOAD_BYTES,
-        addRandomSuffix: true,
-        // Echoed back to us on completion; never trusted for identity beyond this.
-        tokenPayload: JSON.stringify({ userId: user.id }),
-      }),
-      onUploadCompleted: async ({ blob, tokenPayload }) => {
-        const { userId } = JSON.parse(tokenPayload ?? "{}") as { userId?: string };
-        if (!userId) return;
+    const user = await getCurrentUser();
+    if (!user) return apiError("no_session", "Your session expired. Reload the page.", 401);
 
-        await getDb().insert(assets).values({
-          userId,
-          kind: "upload",
-          url: blob.url,
-          isPublic: false,
-        });
-      },
+    if (!isCloudinaryConfigured()) {
+      return apiError(
+        "uploads_unavailable",
+        "Uploads are not configured on this deployment. Paste an image URL instead.",
+        503,
+      );
+    }
+
+    const signed = signedUpload(user.id);
+
+    return NextResponse.json({
+      ...signed,
+      maxBytes: MAX_UPLOAD_BYTES,
+      allowedTypes: ALLOWED_UPLOAD_TYPES,
     });
-
-    return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Upload failed";
-    return apiError("upload_failed", message, 400);
+    return toResponse(error);
   }
 }

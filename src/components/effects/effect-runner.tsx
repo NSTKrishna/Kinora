@@ -19,12 +19,18 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { effectPreview } from "@/lib/effect-previews";
 import { Button } from "@/components/ui/button";
 import { Toaster, useToasts } from "@/components/ui/toast";
 import { ImageField } from "@/components/studio/image-field";
 import { CreditNotice } from "@/components/credits/credit-notice";
 import { AssetMedia } from "@/components/studio/asset-media";
 import { formatElapsed, stageLabel, useElapsed } from "@/components/studio/job-card";
+import {
+  isPlaceholder,
+  PlaceholderBadge,
+  PlaceholderNote,
+} from "@/components/studio/placeholder-badge";
 import { useJobQueue, isActiveStatus, type QueuedJob } from "@/hooks/use-job-queue";
 import { useTabTitleAlert } from "@/hooks/use-finish-alerts";
 import type { EffectView } from "@/lib/presets";
@@ -48,6 +54,7 @@ export function EffectRunner({
 }) {
   const router = useRouter();
   const photoSlot = effect.inputSlots.find((slot) => slot.required) ?? effect.inputSlots[0];
+  const preview = effectPreview(effect.slug);
 
   const [photo, setPhoto] = React.useState("");
   const [extra, setExtra] = React.useState("");
@@ -108,7 +115,8 @@ export function EffectRunner({
       <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_380px] lg:gap-6">
         <figure className="surface order-1 overflow-hidden lg:order-none lg:col-start-1 lg:row-start-1">
           <video
-            src={effect.exampleUrl ?? undefined}
+            src={preview?.url ?? effect.exampleUrl ?? undefined}
+            poster={preview?.posterUrl}
             muted
             loop
             autoPlay
@@ -118,9 +126,27 @@ export function EffectRunner({
             className="aspect-video w-full bg-black object-cover"
           />
           <figcaption className="border-t border-border px-4 py-2.5">
-            <p className="eyebrow">Example</p>
+            <p className="eyebrow">Reference</p>
+            {/* Say what this actually is. It shows the move the effect makes;
+                claiming we rendered licensed footage would be a lie, and the
+                distinction is the whole reason previews are separate. */}
             <p className="mt-1 text-xs text-muted-foreground">
-              A reference loop rendered by us — not your photo.
+              {preview ? (
+                <>
+                  The move this effect makes — reference footage by{" "}
+                  <a
+                    href={preview.credit.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2 hover:text-foreground"
+                  >
+                    {preview.credit.author}
+                  </a>
+                  , not your photo.
+                </>
+              ) : (
+                "A reference loop rendered by us — not your photo."
+              )}
             </p>
           </figcaption>
         </figure>
@@ -310,6 +336,9 @@ function ResultPanel({
                 {job.status === "completed" ? <Check className="size-3" /> : null}
                 {stageLabel(job, elapsed)}
               </span>
+              {job.status === "completed" && isPlaceholder(job.provider) ? (
+                <PlaceholderBadge />
+              ) : null}
               <span className="text-xs tabular-nums text-muted-foreground">
                 {formatElapsed(elapsed)}
               </span>
@@ -442,6 +471,8 @@ function HowItWasMade({ job, effect }: { job: QueuedJob; effect: EffectView }) {
             <dd className="text-right text-foreground">{job.costCredits} credits</dd>
           </dl>
         </div>
+
+        {isPlaceholder(job.provider) ? <PlaceholderNote /> : null}
 
         <Button size="sm" variant="outline" asChild>
           <Link href={`/video?recreate=${job.id}`}>Open in the composer</Link>

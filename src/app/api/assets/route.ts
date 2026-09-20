@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { assets } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { isOwnUploadUrl } from "@/lib/cloudinary";
 import { apiError, toResponse } from "@/lib/api";
 import { serializeAsset } from "@/lib/serialize";
 import { getLibraryPage } from "@/lib/queries";
@@ -43,14 +44,19 @@ export async function POST(request: NextRequest) {
 
     const body = recordSchema.parse(await request.json());
 
-    // Only accept URLs from blob storage: this endpoint must not become a way
-    // to attach arbitrary remote images to an account.
-    if (!/^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\//i.test(body.url)) {
+    // Only accept URLs from our own storage, scoped to this user: this endpoint
+    // must not become a way to attach arbitrary remote images to an account.
+    // Cloudinary is the current path; the Blob pattern stays so URLs recorded
+    // before the move keep resolving.
+    const fromOurStorage =
+      isOwnUploadUrl(body.url, user.id) ||
+      /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\//i.test(body.url);
+
+    if (!fromOurStorage) {
       return apiError("invalid_url", "That file did not come from Kinora's storage.", 400);
     }
 
-    // The Blob webhook may have recorded this already on a real deployment;
-    // locally it cannot fire at all. Either way, one row per URL.
+    // One row per URL, whichever path recorded it first.
     const [existing] = await getDb()
       .select()
       .from(assets)

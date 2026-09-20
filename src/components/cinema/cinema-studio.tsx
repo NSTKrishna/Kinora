@@ -23,6 +23,11 @@ import { Separator } from "@/components/ui/separator";
 import { Toaster, useToasts } from "@/components/ui/toast";
 import { AssetMedia } from "@/components/studio/asset-media";
 import { formatElapsed, stageLabel, useElapsed } from "@/components/studio/job-card";
+import {
+  isPlaceholder,
+  PlaceholderBadge,
+  PlaceholderNote,
+} from "@/components/studio/placeholder-badge";
 import { OptionPicker } from "@/components/cinema/option-picker";
 import { ReferenceStrip } from "@/components/cinema/reference-strip";
 import { useJobQueue, isActiveStatus, type QueuedJob } from "@/hooks/use-job-queue";
@@ -565,6 +570,7 @@ function FramesStep({
             {active ? <Loader2 className="size-3 animate-spin" /> : null}
             {stageLabel(job, elapsed)}
           </span>
+          {job.status === "completed" && isPlaceholder(job.provider) ? <PlaceholderBadge /> : null}
           <span className="text-xs tabular-nums text-muted-foreground">
             {formatElapsed(elapsed)}
           </span>
@@ -717,6 +723,7 @@ function MotionStep({
             {active ? <Loader2 className="size-3 animate-spin" /> : null}
             {stageLabel(job, elapsed)}
           </span>
+          {job.status === "completed" && isPlaceholder(job.provider) ? <PlaceholderBadge /> : null}
           <span className="text-xs tabular-nums text-muted-foreground">
             {formatElapsed(elapsed)}
           </span>
@@ -822,6 +829,7 @@ function ResultStep({
               .
             </p>
           ) : null}
+          {job && isPlaceholder(job.provider) ? <PlaceholderNote /> : null}
         </div>
       ) : null}
     </div>

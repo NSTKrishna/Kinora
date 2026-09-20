@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AssetActions } from "@/components/studio/lightbox";
 import { AssetMedia } from "@/components/studio/asset-media";
+import { isPlaceholder, PlaceholderBadge } from "@/components/studio/placeholder-badge";
 import type { AssetView } from "@/lib/serialize";
 import type { QueuedJob } from "@/hooks/use-job-queue";
 
@@ -98,6 +99,8 @@ export function JobCard({
           {job.status === "canceled" ? <Ban className="size-3" /> : null}
           {stage}
         </span>
+
+        {job.status === "completed" && isPlaceholder(job.provider) ? <PlaceholderBadge /> : null}
 
         <span className="text-xs tabular-nums text-muted-foreground">{formatElapsed(elapsed)}</span>
 

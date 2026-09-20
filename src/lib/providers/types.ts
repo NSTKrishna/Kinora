@@ -50,9 +50,35 @@ export interface GenerationProvider {
   cancel(model: AnyModel, providerRequestId: string): Promise<void>;
 }
 
+/**
+ * HTTP statuses that mean "we will not serve you", not "not this request".
+ * A rejected key, an unpaid bill, a rate limit: the identical request would
+ * have worked yesterday and will work again once someone acts.
+ */
+export function isOperatorStatus(status: number): boolean {
+  return status === 401 || status === 402 || status === 403 || status === 429;
+}
+
 export class ProviderError extends Error {
-  constructor(message: string) {
+  /**
+   * The provider could not serve us at all — a rejected key, an exhausted
+   * balance, a rate limit, an outage — rather than refusing this particular
+   * request.
+   *
+   * Hybrid mode degrades these to a placeholder so a billing lapse cannot take
+   * the whole product down. Everything else — invalid params, a content
+   * refusal, anything unrecognised — keeps failing, because answering a
+   * refusal with unrelated media would be a lie and masking a real bug is
+   * more expensive than showing it.
+   *
+   * Each adapter sets this at the throw site, where the structured error still
+   * exists; by the time it reaches `runGeneration` only the message survives.
+   */
+  readonly operator: boolean;
+
+  constructor(message: string, options?: { operator?: boolean }) {
     super(message);
     this.name = "ProviderError";
+    this.operator = options?.operator ?? false;
   }
 }

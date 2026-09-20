@@ -10,8 +10,9 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { AssetMedia } from "@/components/studio/asset-media";
+import { isPlaceholder, PlaceholderBadge } from "@/components/studio/placeholder-badge";
 import { recreateAssetHref } from "@/lib/recreate";
-import { SEED_ASSETS, SEED_IS_REAL, type SeedAsset } from "@/lib/seed";
+import { SEED_ASSETS, SEED_IS_REAL, SEED_IS_STOCK, type SeedAsset } from "@/lib/seed";
 import type { ExploreItem } from "@/lib/serialize";
 
 type Filter = "all" | "image" | "video" | "effect";
@@ -39,7 +40,9 @@ function seedToItem(seed: SeedAsset): ExploreItem {
     jobId: null,
     kind: seed.kind,
     url: seed.url,
-    thumbUrl: null,
+    // The clip's own first frame. Without it a grid of videos paints black
+    // boxes until each one decodes, which reads as a broken page.
+    thumbUrl: seed.posterUrl,
     width: seed.width ?? null,
     height: seed.height ?? null,
     durationMs: seed.durationMs,
@@ -49,6 +52,7 @@ function seedToItem(seed: SeedAsset): ExploreItem {
     createdAt: "",
     presetSlug: null,
     modelLabel: null,
+    credit: seed.credit,
   };
 }
 
@@ -234,8 +238,12 @@ function PublicCard({
 
       {sample ? (
         <span className="pointer-events-none absolute right-3 top-3 rounded-sm bg-black/60 px-2 py-1 text-micro font-450 uppercase tracking-[0.12em] text-white/80 backdrop-blur">
-          Sample
+          {SEED_IS_STOCK ? "Reference" : "Sample"}
         </span>
+      ) : isPlaceholder(item.provider) ? (
+        // A published render that a hybrid fallback stood in for. Same promise
+        // to the viewer as the seed badge, so it gets the same treatment.
+        <PlaceholderBadge className="absolute right-3 top-3" />
       ) : null}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3">
@@ -243,12 +251,16 @@ function PublicCard({
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="truncate text-micro uppercase tracking-[0.14em] text-white/55">
             {sample
-              ? SEED_IS_REAL
-                ? "Kinora sample"
-                : "Kinora sample · placeholder render"
-              : item.presetSlug
-                ? `Effect · ${item.presetSlug}`
-                : (item.modelLabel ?? "Kinora")}
+              ? item.credit
+                ? `Reference footage · ${item.credit.author}`
+                : SEED_IS_REAL
+                  ? "Kinora sample"
+                  : "Kinora sample · placeholder render"
+              : isPlaceholder(item.provider)
+                ? `${item.presetSlug ? `Effect · ${item.presetSlug}` : (item.modelLabel ?? "Kinora")} · placeholder`
+                : item.presetSlug
+                  ? `Effect · ${item.presetSlug}`
+                  : (item.modelLabel ?? "Kinora")}
           </span>
           <Link
             href={recreateAssetHref(item)}

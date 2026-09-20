@@ -13,6 +13,13 @@ export function serializeJob(job: Job) {
     prompt: job.compiledPrompt,
     input: job.input as Record<string, unknown>,
     costCredits: job.costCredits,
+    /**
+     * Which provider actually ran it — not which one was asked. In hybrid mode
+     * this reads `mock` when a real provider could not serve us, and that is
+     * what every placeholder badge keys off. Without it no surface can tell a
+     * real render from a substituted one.
+     */
+    provider: job.provider,
     error: job.error,
     createdAt: job.createdAt.toISOString(),
     completedAt: job.completedAt?.toISOString() ?? null,
@@ -46,4 +53,16 @@ export type ExploreItem = AssetView & {
   presetSlug: string | null;
   /** Kinora's own name for the model, never the provider's endpoint id. */
   modelLabel: string | null;
+  /**
+   * Set only on licensed reference footage in the seed set, never on a real
+   * render. Its presence is what tells the card not to call the tile a sample.
+   */
+  credit?: { author: string; url: string } | null;
+  /**
+   * The provider that produced it, from the originating job. `mock` means the
+   * media is a placeholder — either the whole deployment is in mock mode or a
+   * hybrid fallback stood in for a provider that could not serve us. Null for
+   * seed rows, which have no job and carry their own labelling.
+   */
+  provider?: "mock" | "fal" | "cloudflare" | null;
 };
