@@ -3,8 +3,10 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+/** Sharp, not pill-shaped — DESIGN.md is explicit that the geometry is subtly
+ *  rounded. Weight 450 uppercase, the micro-label treatment. */
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-micro font-medium uppercase tracking-[0.12em] transition-colors",
+  "inline-flex items-center gap-1 rounded-sm border px-2 py-0.5 text-micro font-450 uppercase transition-colors",
   {
     variants: {
       variant: {

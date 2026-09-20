@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 /** The header every page shares, while its data is still in flight. */
 export function HeaderSkeleton() {
   return (
-    <div className="space-y-3 border-b border-border/70 pb-6">
+    <div className="space-y-3 border-b border-border pb-6">
       <Skeleton className="h-3 w-20" />
       <Skeleton className="h-7 w-40" />
       <Skeleton className="h-4 w-full max-w-md" />
@@ -15,7 +15,7 @@ export function ChipsSkeleton({ count = 4 }: { count?: number }) {
   return (
     <div className="mt-6 flex gap-2">
       {Array.from({ length: count }).map((_, i) => (
-        <Skeleton key={i} className="h-7 w-20 rounded-full" />
+        <Skeleton key={i} className="h-7 w-20 rounded-sm" />
       ))}
     </div>
   );

@@ -61,7 +61,7 @@ export function AssetMedia({
         {autoPlayOnHover ? (
           <span
             className={cn(
-              "pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-micro font-medium uppercase tracking-[0.12em] text-white/90 backdrop-blur transition-opacity",
+              "pointer-events-none absolute left-2 top-2 flex items-center gap-1 rounded-sm bg-black/60 px-2 py-1 text-micro font-450 uppercase tracking-[0.12em] text-white/90 backdrop-blur transition-opacity",
               playing ? "opacity-0" : "opacity-100",
             )}
           >

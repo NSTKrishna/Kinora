@@ -417,6 +417,40 @@ rendered frames — and only an explicit re-render rewinds it.
 
 ---
 
+## 8b. The visual system
+
+[DESIGN.md](DESIGN.md) is the source of truth for how Kinora looks, adapted
+from the Runway analysis in VoltAgent/awesome-design-md. It is a document an
+agent reads, not a stylesheet — the tokens that implement it live in two files:
+
+| File | Holds |
+| --- | --- |
+| `src/app/globals.css` | Colour tokens, the `.surface` and `.eyebrow` primitives, reduced-motion and focus rules |
+| `tailwind.config.ts` | Type scale, radii, container width, the weight-450 step |
+
+The rules that actually shape the interface:
+
+- **Pure black canvas, one surface step, one hairline.** `#000` → `#1a1a1a` →
+  `#292929` for selected state, with `#27272a` as the only border colour.
+- **Zero shadows.** In cinema depth comes from lighting and composition, not
+  drop shadows. Containment is a hairline and a surface step, nothing else.
+- **Nothing is pill-shaped.** 4px on buttons, 8px on containers. The only
+  `rounded-full` left in the codebase is a status dot, which is a real circle.
+- **Negative tracking is the default**, even on body text, and display sizes sit
+  at line-height 1.0. That compression *is* the editorial feel.
+- **Uppercase micro labels at weight 450** with positive tracking — the
+  intermediate weight is the precision detail the system calls out.
+- **The media is the UI.** The hero is a full-bleed clip; effect cards are their
+  own loops; there are no decorative gradients anywhere in the interface.
+
+Three documented deviations from the source, each with its reason in the header
+of DESIGN.md: Kinora keeps its ember accent (used with Runway's discipline, not
+Runway's absence), uses Inter in place of the licensed abcNormal, and is
+dark-only so the light-section tokens go unused. A fourth is recorded in
+`globals.css`: the specified Cool Slate `#767d88` clears WCAG AA only against
+pure black and fails at 4.19:1 on the `#1a1a1a` card surface, so its lightness
+is lifted 50% → 54% — same hue, same character, legible everywhere it is used.
+
 ## 9. Safety, cost and limits
 
 | Control                | Where                         | Behaviour                                                          |

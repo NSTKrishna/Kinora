@@ -36,9 +36,7 @@ export default function NotFound() {
           <Compass className="size-3.5" />
           404
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          That page isn&apos;t here.
-        </h1>
+        <h1 className="text-3xl font-normal sm:text-4xl">That page isn&apos;t here.</h1>
         <p className="max-w-md text-pretty text-sm text-muted-foreground">
           The link may be old, or the render it pointed at may have been deleted. Everything else
           still works — you are signed in as a guest and your credits are intact.

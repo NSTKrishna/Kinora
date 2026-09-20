@@ -7,7 +7,8 @@ const config: Config = {
     container: {
       center: true,
       padding: { DEFAULT: "1rem", lg: "2rem" },
-      screens: { "2xl": "1440px" },
+      // Cinema-wide. DESIGN.md: container max 1600px.
+      screens: { "2xl": "1600px" },
     },
     extend: {
       colors: {
@@ -30,26 +31,47 @@ const config: Config = {
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
       },
+      /**
+       * DESIGN.md's four steps: sharp (4px) for buttons, subtle (6px) for links
+       * and small containers, comfortable (8px) for containers and image cards,
+       * generous (16px) for alert-style panels. Nothing is pill-shaped.
+       */
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        panel: "1rem",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
       },
+      /**
+       * Runway's scale, as specified in DESIGN.md.
+       *
+       * Two rules do the work. Display sizes sit at line-height 1.0 with
+       * negative tracking, which reads as a film title rather than a headline.
+       * And negative tracking is the default even on body text (-0.16px at
+       * 16px ≈ -0.01em), so the whole page runs slightly tighter than normal —
+       * that compression is the editorial feel, and losing it loses the look.
+       *
+       * Micro labels are the exception: uppercase with *positive* tracking, so
+       * they read as signposts against everything else.
+       */
       fontSize: {
-        // Tight, deliberate type scale.
-        micro: ["0.6875rem", { lineHeight: "1rem", letterSpacing: "0.08em" }],
-        xs: ["0.75rem", { lineHeight: "1.1rem" }],
-        sm: ["0.8125rem", { lineHeight: "1.25rem" }],
-        base: ["0.9375rem", { lineHeight: "1.5rem" }],
-        lg: ["1.0625rem", { lineHeight: "1.6rem" }],
-        xl: ["1.375rem", { lineHeight: "1.8rem", letterSpacing: "-0.01em" }],
-        "2xl": ["1.875rem", { lineHeight: "2.2rem", letterSpacing: "-0.02em" }],
-        "3xl": ["2.5rem", { lineHeight: "2.75rem", letterSpacing: "-0.03em" }],
-        "4xl": ["3.5rem", { lineHeight: "3.6rem", letterSpacing: "-0.035em" }],
-        "5xl": ["4.5rem", { lineHeight: "4.5rem", letterSpacing: "-0.04em" }],
+        micro: ["0.6875rem", { lineHeight: "1.3", letterSpacing: "0.032em" }],
+        xs: ["0.8125rem", { lineHeight: "1.3", letterSpacing: "-0.016em" }],
+        sm: ["0.875rem", { lineHeight: "1.35", letterSpacing: "-0.012em" }],
+        base: ["1rem", { lineHeight: "1.45", letterSpacing: "-0.01em" }],
+        lg: ["1.25rem", { lineHeight: "1.2", letterSpacing: "-0.012em" }],
+        xl: ["1.5rem", { lineHeight: "1.05", letterSpacing: "-0.018em" }],
+        "2xl": ["2.25rem", { lineHeight: "1.0", letterSpacing: "-0.025em" }],
+        "3xl": ["2.5rem", { lineHeight: "1.0", letterSpacing: "-0.025em" }],
+        "4xl": ["3rem", { lineHeight: "1.0", letterSpacing: "-0.025em" }],
+        "5xl": ["4rem", { lineHeight: "1.0", letterSpacing: "-0.028em" }],
+      },
+      fontWeight: {
+        // The precision detail: between regular and medium.
+        450: "450",
       },
       keyframes: {
         "fade-up": {

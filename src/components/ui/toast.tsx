@@ -44,7 +44,7 @@ export function Toaster({
         <div
           key={toast.id}
           className={cn(
-            "pointer-events-auto flex w-full max-w-sm animate-fade-up items-start gap-3 rounded-lg border bg-popover/95 p-3 shadow-lg backdrop-blur",
+            "pointer-events-auto flex w-full max-w-sm animate-fade-up items-start gap-3 rounded-lg border bg-card p-3 backdrop-blur",
             toast.tone === "ok" ? "border-border" : "border-destructive/40",
           )}
         >

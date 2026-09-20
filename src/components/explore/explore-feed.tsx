@@ -136,7 +136,7 @@ export function ExploreFeed({ initial }: { initial: Page }) {
             onClick={() => changeFilter(entry.id)}
             aria-pressed={entry.id === filter}
             className={cn(
-              "shrink-0 rounded-full px-3 py-1.5 text-xs transition-colors",
+              "shrink-0 rounded-sm px-3 py-1.5 text-xs transition-colors",
               entry.id === filter
                 ? "bg-secondary text-foreground"
                 : "border border-border text-muted-foreground hover:text-foreground",
@@ -221,7 +221,7 @@ function PublicCard({
   sample?: boolean;
 }) {
   return (
-    <article className="hover:glow-ember focus-within:glow-ember group relative isolate w-full overflow-hidden rounded-lg border border-border/70 bg-card transition-[transform,box-shadow] duration-300 ease-out focus-within:-translate-y-0.5 hover:-translate-y-0.5">
+    <article className="hover:glow-ember focus-within:glow-ember group relative isolate w-full overflow-hidden rounded-lg border border-border bg-card transition-[transform,box-shadow] duration-300 ease-out focus-within:-translate-y-0.5 hover:-translate-y-0.5">
       <button type="button" onClick={onOpen} className="block w-full focus-visible:outline-none">
         <AssetMedia
           asset={item}
@@ -230,10 +230,10 @@ function PublicCard({
         <span className="sr-only">Open this render</span>
       </button>
 
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent" />
 
       {sample ? (
-        <span className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/60 px-2 py-1 text-micro font-medium uppercase tracking-[0.12em] text-white/80 backdrop-blur">
+        <span className="pointer-events-none absolute right-3 top-3 rounded-sm bg-black/60 px-2 py-1 text-micro font-450 uppercase tracking-[0.12em] text-white/80 backdrop-blur">
           Sample
         </span>
       ) : null}
@@ -252,7 +252,7 @@ function PublicCard({
           </span>
           <Link
             href={recreateAssetHref(item)}
-            className="pointer-events-auto flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-micro font-medium uppercase tracking-[0.12em] text-white backdrop-blur transition-[opacity,background-color] hover:bg-white/20 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 group-focus-within:opacity-100 group-hover:opacity-100 sm:opacity-0"
+            className="pointer-events-auto flex shrink-0 items-center gap-1 rounded-sm bg-white/10 px-2 py-1 text-micro font-450 uppercase tracking-[0.12em] text-white backdrop-blur transition-[opacity,background-color] hover:bg-white/20 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 group-focus-within:opacity-100 group-hover:opacity-100 sm:opacity-0"
           >
             <Repeat2 className="size-3" />
             Recreate

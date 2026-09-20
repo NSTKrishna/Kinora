@@ -136,7 +136,7 @@ export function ReferenceStrip({
             <button
               type="button"
               onClick={() => onChange(urls.filter((entry) => entry !== url))}
-              className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white transition-colors hover:bg-black/80"
+              className="absolute right-1 top-1 rounded-sm bg-black/60 p-1 text-white transition-colors hover:bg-black/80"
               aria-label="Remove reference"
             >
               <X className="size-3" />
@@ -187,15 +187,11 @@ export function ReferenceStrip({
                 key={character.id}
                 type="button"
                 onClick={() => applyCharacter(character)}
-                className="flex items-center gap-2 rounded-full border border-border py-1 pl-1 pr-3 text-xs transition-colors hover:border-primary/40"
+                className="flex items-center gap-2 rounded-sm border border-border py-1 pl-1 pr-3 text-xs transition-colors hover:border-primary/40"
               >
                 {character.urls[0] ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={character.urls[0]}
-                    alt=""
-                    className="size-6 rounded-full object-cover"
-                  />
+                  <img src={character.urls[0]} alt="" className="size-6 rounded-sm object-cover" />
                 ) : null}
                 {character.name}
               </button>

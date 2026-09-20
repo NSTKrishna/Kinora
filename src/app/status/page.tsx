@@ -88,7 +88,7 @@ export default async function StatusPage() {
           </div>
 
           <div
-            className="mt-3 h-2 w-full overflow-hidden rounded-full bg-secondary"
+            className="mt-3 h-2 w-full overflow-hidden rounded-sm bg-secondary"
             role="progressbar"
             aria-valuenow={capacity.spent}
             aria-valuemin={0}
@@ -97,7 +97,7 @@ export default async function StatusPage() {
           >
             <div
               className={cn(
-                "h-full rounded-full transition-[width]",
+                "h-full rounded-sm transition-[width]",
                 capacity.used > 0.9 ? "bg-destructive" : "bg-primary",
               )}
               style={{ width: `${Math.round(capacity.used * 100)}%` }}

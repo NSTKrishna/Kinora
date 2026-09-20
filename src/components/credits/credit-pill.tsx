@@ -53,7 +53,7 @@ export function CreditPill({
           type="button"
           onClick={() => void claim()}
           disabled={busy}
-          className="flex shrink-0 items-center gap-1.5 rounded-full border border-primary/40 bg-primary/[0.08] px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/[0.14] disabled:opacity-60"
+          className="flex shrink-0 items-center gap-1.5 rounded-sm border border-primary/40 bg-primary/[0.08] px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/[0.14] disabled:opacity-60"
           title={`Claim ${dailyAmount} free credits for today`}
         >
           {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Gift className="size-3.5" />}
@@ -65,7 +65,7 @@ export function CreditPill({
       <Link
         href="/pricing"
         className={cn(
-          "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium tabular-nums transition-colors",
+          "flex items-center gap-1.5 rounded-sm border px-3 py-1.5 text-xs font-medium tabular-nums transition-colors",
           empty
             ? "border-destructive/50 bg-destructive/[0.08] text-destructive"
             : low

@@ -301,7 +301,7 @@ export function Studio({
                   onClick={() => selectCharacter(null)}
                   aria-pressed={characterId === null}
                   className={cn(
-                    "rounded-full px-2.5 py-1.5 text-xs transition-colors",
+                    "rounded-sm px-2.5 py-1.5 text-xs transition-colors",
                     characterId === null
                       ? "bg-secondary text-foreground"
                       : "border border-border text-muted-foreground hover:text-foreground",
@@ -316,7 +316,7 @@ export function Studio({
                     onClick={() => selectCharacter(entry)}
                     aria-pressed={entry.id === characterId}
                     className={cn(
-                      "flex items-center gap-2 rounded-full py-1 pl-1 pr-3 text-xs transition-colors",
+                      "flex items-center gap-2 rounded-sm py-1 pl-1 pr-3 text-xs transition-colors",
                       entry.id === characterId
                         ? "bg-secondary text-foreground"
                         : "border border-border text-muted-foreground hover:text-foreground",
@@ -324,11 +324,7 @@ export function Studio({
                   >
                     {entry.urls[0] ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={entry.urls[0]}
-                        alt=""
-                        className="size-5 rounded-full object-cover"
-                      />
+                      <img src={entry.urls[0]} alt="" className="size-5 rounded-sm object-cover" />
                     ) : null}
                     {entry.name}
                   </button>

@@ -242,7 +242,7 @@ function CreateCharacter({
               <button
                 type="button"
                 onClick={() => setUrls((current) => current.filter((entry) => entry !== url))}
-                className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white transition-colors hover:bg-black/80"
+                className="absolute right-1 top-1 rounded-sm bg-black/60 p-1 text-white transition-colors hover:bg-black/80"
                 aria-label="Remove photo"
               >
                 <X className="size-3" />

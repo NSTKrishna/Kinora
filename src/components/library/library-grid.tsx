@@ -147,7 +147,7 @@ export function LibraryGrid({ initial }: { initial: Page }) {
             onClick={() => changeFilter(entry.id)}
             aria-pressed={entry.id === filter}
             className={cn(
-              "shrink-0 rounded-full px-3 py-1.5 text-xs transition-colors",
+              "shrink-0 rounded-sm px-3 py-1.5 text-xs transition-colors",
               entry.id === filter
                 ? "bg-secondary text-foreground"
                 : "border border-border text-muted-foreground hover:text-foreground",
@@ -197,7 +197,7 @@ export function LibraryGrid({ initial }: { initial: Page }) {
             return (
               <article
                 key={asset.id}
-                className="group relative overflow-hidden rounded-lg border border-border/70 bg-card"
+                className="group relative overflow-hidden rounded-lg border border-border bg-card"
               >
                 <button
                   type="button"
@@ -213,7 +213,7 @@ export function LibraryGrid({ initial }: { initial: Page }) {
                   />
                 </button>
 
-                <div className="flex items-center gap-1 border-t border-border/70 px-2 py-1.5">
+                <div className="flex items-center gap-1 border-t border-border px-2 py-1.5">
                   <span className="truncate text-micro uppercase tracking-[0.12em] text-muted-foreground">
                     {asset.kind}
                     {isPublic ? " · public" : ""}

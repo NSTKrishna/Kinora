@@ -9,11 +9,9 @@ import { isDatabaseConfigured } from "@/db";
 import { getEffects } from "@/lib/presets";
 import type { EffectView } from "@/lib/presets";
 import { getPublicFeed } from "@/lib/queries";
-import { FEED_ITEMS, posterStyle } from "@/lib/placeholder";
+import { CinematicHero } from "@/components/explore/cinematic-hero";
 
 export default async function ExplorePage() {
-  const hero = FEED_ITEMS[0];
-
   // Neither of these is a reason the landing page fails to render.
   let effects: EffectView[] = [];
   let feed = { items: [], nextCursor: null } as Awaited<ReturnType<typeof getPublicFeed>>;
@@ -27,18 +25,17 @@ export default async function ExplorePage() {
 
   return (
     <div className="pb-4">
-      {/* Hero — media behind, one promise, two doors. */}
-      <section className="relative isolate overflow-hidden border-b border-border/70">
-        <div className="absolute inset-0 -z-10" style={posterStyle(hero.palette, 3)} />
-        <div className="grain absolute inset-0 -z-10" />
-        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-background via-background/85 to-background/40" />
+      {/* Hero — a full-bleed clip with the promise over it. */}
+      <section className="relative isolate overflow-hidden">
+        <CinematicHero />
 
-        <div className="container flex flex-col items-start gap-6 py-16 sm:py-24 lg:py-32">
+        <div className="container flex min-h-[78vh] flex-col items-start justify-end gap-6 pb-20 pt-32 sm:min-h-[82vh]">
           <Badge>
             <span className="size-1.5 rounded-full bg-primary" />
             Now in open preview
           </Badge>
-          <h1 className="max-w-3xl text-balance text-3xl font-semibold sm:text-4xl lg:text-5xl">
+          {/* Film-title density: line-height 1.0, negative tracking, weight 400. */}
+          <h1 className="max-w-4xl text-balance text-4xl font-normal sm:text-5xl">
             A studio for generated motion.
           </h1>
           <p className="max-w-xl text-pretty text-base text-muted-foreground">
@@ -73,11 +70,11 @@ export default async function ExplorePage() {
 
       {/* Effects rail — the shortest path from landing to a finished clip. */}
       {effects.length ? (
-        <section className="container pt-10">
+        <section className="container pt-20">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="eyebrow">Effects</p>
-              <h2 className="mt-1 text-xl font-medium">One photo, one tap</h2>
+              <h2 className="mt-2 text-xl font-normal">One photo, one tap</h2>
               <p className="mt-1 max-w-lg text-sm text-muted-foreground">
                 The camera move, the lighting and the model are already decided. Add a photo and it
                 renders.
@@ -106,11 +103,11 @@ export default async function ExplorePage() {
       ) : null}
 
       {/* Explore feed */}
-      <section className="container pt-10">
+      <section className="container pt-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="eyebrow">Explore</p>
-            <h2 className="mt-1 text-xl font-medium">Shared by other visitors</h2>
+            <h2 className="mt-2 text-xl font-normal">Shared by other visitors</h2>
             <p className="mt-1 max-w-lg text-sm text-muted-foreground">
               Anything made here stays private until someone publishes it. Hit Recreate on a tile to
               start from that prompt.

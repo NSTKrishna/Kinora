@@ -117,7 +117,7 @@ export function EffectRunner({
             aria-label={`${effect.title} example`}
             className="aspect-video w-full bg-black object-cover"
           />
-          <figcaption className="border-t border-border/70 px-4 py-2.5">
+          <figcaption className="border-t border-border px-4 py-2.5">
             <p className="eyebrow">Example</p>
             <p className="mt-1 text-xs text-muted-foreground">
               A reference loop rendered by us — not your photo.
@@ -214,7 +214,7 @@ export function EffectRunner({
               job.assets.map((asset) => (
                 <div
                   key={asset.id}
-                  className="overflow-hidden rounded-lg border border-border/70 bg-card"
+                  className="overflow-hidden rounded-lg border border-border bg-card"
                 >
                   <AssetMedia asset={asset} className="aspect-video w-full" />
                 </div>
@@ -293,14 +293,14 @@ function ResultPanel({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-border/70 px-4 py-2.5">
+      <div className="flex flex-col gap-3 border-t border-border px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <p className="eyebrow">Your result</p>
           {job ? (
             <>
               <span
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-micro font-medium uppercase tracking-[0.12em]",
+                  "flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-micro font-450 uppercase tracking-[0.12em]",
                   active && "bg-primary/15 text-primary",
                   job.status === "completed" && "bg-emerald-500/15 text-emerald-400",
                   failed && "bg-destructive/15 text-destructive",

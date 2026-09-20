@@ -404,17 +404,17 @@ function StepBar({
               onClick={() => onGo(entry.id)}
               aria-current={entry.id === step ? "step" : undefined}
               className={cn(
-                "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                "flex shrink-0 items-center gap-2 rounded-sm border px-3 py-1.5 text-xs transition-colors",
                 entry.id === step
                   ? "border-primary/50 bg-primary/[0.08] text-foreground"
                   : open
                     ? "border-border text-muted-foreground hover:text-foreground"
-                    : "border-border/50 text-muted-foreground/50",
+                    : "border-border text-muted-foreground/50",
               )}
             >
               <span
                 className={cn(
-                  "flex size-4 items-center justify-center rounded-full text-micro",
+                  "flex size-4 items-center justify-center rounded-sm text-micro",
                   done ? "bg-primary/20 text-primary" : "bg-secondary",
                 )}
               >
@@ -556,7 +556,7 @@ function FramesStep({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span
             className={cn(
-              "flex items-center gap-1.5 rounded-full px-2 py-1 text-micro font-medium uppercase tracking-[0.12em]",
+              "flex items-center gap-1.5 rounded-sm px-2 py-1 text-micro font-450 uppercase tracking-[0.12em]",
               active && "bg-primary/15 text-primary",
               job.status === "completed" && "bg-emerald-500/15 text-emerald-400",
               !active && job.status !== "completed" && "bg-destructive/15 text-destructive",
@@ -609,7 +609,7 @@ function FramesStep({
           return (
             <div
               key={i}
-              className="relative aspect-video overflow-hidden rounded-md border border-border/70 bg-muted/40"
+              className="relative aspect-video overflow-hidden rounded-md border border-border bg-muted/40"
             >
               {active ? (
                 <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
@@ -708,7 +708,7 @@ function MotionStep({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span
             className={cn(
-              "flex items-center gap-1.5 rounded-full px-2 py-1 text-micro font-medium uppercase tracking-[0.12em]",
+              "flex items-center gap-1.5 rounded-sm px-2 py-1 text-micro font-450 uppercase tracking-[0.12em]",
               active && "bg-primary/15 text-primary",
               job.status === "completed" && "bg-emerald-500/15 text-emerald-400",
               !active && job.status !== "completed" && "bg-destructive/15 text-destructive",
@@ -775,7 +775,7 @@ function ResultStep({
         )}
 
         {asset ? (
-          <div className="flex flex-wrap gap-2 border-t border-border/70 p-3">
+          <div className="flex flex-wrap gap-2 border-t border-border p-3">
             <Button size="sm" variant="secondary" asChild>
               <a href={asset.url} download target="_blank" rel="noreferrer">
                 <Download />

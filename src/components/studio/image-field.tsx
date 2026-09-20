@@ -73,7 +73,7 @@ export function ImageField({
             <button
               type="button"
               onClick={() => onChange("")}
-              className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white transition-colors hover:bg-black/80"
+              className="absolute right-2 top-2 rounded-sm bg-black/60 p-1 text-white transition-colors hover:bg-black/80"
               aria-label={`Remove ${label}`}
             >
               <X className="size-3" />

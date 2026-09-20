@@ -3,38 +3,67 @@
 @tailwind utilities;
 
 @layer base {
-  /* Kinora runs dark-only: one near-black surface stack, one accent. */
+  /**
+   * Kinora runs dark-only, on Runway's palette: a pure black canvas, one dark
+   * surface step, and a single hairline border that is barely visible. See
+   * DESIGN.md — the interface is meant to retreat so the media can speak.
+   *
+   * The one deviation is the ember accent, which is Kinora's own mark. It is
+   * used with Runway's discipline, not Runway's absence: brand, focus rings,
+   * the credit meter, a small number of primary actions. Never decoration.
+   */
   :root {
-    --background: 240 6% 4%;
-    --foreground: 40 12% 96%;
+    /* Runway Black — the canvas. */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
 
-    --card: 240 5% 7%;
-    --card-foreground: 40 12% 96%;
+    /* Dark Surface #1a1a1a — cards and elevated containers. */
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 240 6% 6%;
-    --popover-foreground: 40 12% 96%;
+    /* Deep Black #030303 — layered surfaces that sit over the canvas. */
+    --popover: 0 0% 1%;
+    --popover-foreground: 0 0% 100%;
 
-    /* Accent: Kinora ember. The only saturated colour in the system. */
+    /* Kinora ember. The only chromatic element in the interface. */
     --primary: 18 95% 58%;
     --primary-foreground: 24 40% 6%;
 
-    --secondary: 240 5% 12%;
-    --secondary-foreground: 40 12% 96%;
+    /**
+     * The selected/raised step. It has to sit clear of --card, or a chosen chip
+     * on a card surface reads as bare text with no container at all.
+     */
+    --secondary: 0 0% 16%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 5% 11%;
-    --muted-foreground: 240 5% 62%;
+    /**
+     * Cool Slate — secondary text is blue-gray, not neutral gray. This is the
+     * one place Kinora's value differs from the number in DESIGN.md.
+     *
+     * The specified #767d88 clears AA only against the pure black canvas
+     * (5.06:1). On the #1a1a1a card surface it lands at 4.19:1, and on the
+     * credit pill's translucent background at 4.24:1 — both under 4.5 for text
+     * this size, which Lighthouse flagged. Lifting lightness 50% -> 54% keeps
+     * the exact hue and the exact character while clearing 4.87:1 on the worst
+     * surface it is used on. The cool cast is the design signature; the
+     * particular luminance was never the point.
+     */
+    --muted: 0 0% 7%;
+    --muted-foreground: 217 7% 54%;
 
-    --accent: 240 5% 14%;
-    --accent-foreground: 40 12% 96%;
+    --accent: 0 0% 22%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 55%;
-    --destructive-foreground: 40 12% 96%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 240 5% 15%;
-    --input: 240 5% 15%;
+    /* Border Dark #27272a — the single border colour. Barely-there containment. */
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
     --ring: 18 95% 58%;
 
-    --radius: 0.875rem;
+    /* Comfortable (8px). Runway's geometry is subtly rounded, never pill-shaped. */
+    --radius: 0.5rem;
   }
 
   * {
@@ -60,18 +89,34 @@
 @layer components {
   /* Eyebrow / label type: small, spaced, muted. */
   .eyebrow {
-    @apply text-micro font-medium uppercase tracking-[0.18em] text-muted-foreground;
+    @apply text-micro uppercase tracking-[0.032em] text-muted-foreground;
+    font-weight: 450;
   }
 
-  /* Media-first tiles sit on a subtle raised surface with a hairline edge. */
+  /**
+   * A container. Flat by default — DESIGN.md: "zero shadows on any element".
+   * In cinema depth comes from lighting and composition, not drop shadows, so
+   * containment here is one hairline border and a single surface step.
+   */
   .surface {
-    @apply rounded-lg border border-border/80 bg-card;
+    @apply rounded-lg border border-border bg-card;
   }
 
+  /**
+   * The only "elevation" in the system: a hairline that warms to ember.
+   * Replaces the old ember glow, which was a shadow by another name.
+   */
   .glow-ember {
-    box-shadow:
-      0 0 0 1px hsl(var(--primary) / 0.25),
-      0 18px 60px -24px hsl(var(--primary) / 0.55);
+    box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.45);
+  }
+
+  /**
+   * Uppercase micro labels at weight 450 — the intermediate between regular and
+   * medium that DESIGN.md calls out as the precision detail. Positive tracking
+   * makes them navigational signposts against the tight lowercase text.
+   */
+  .eyebrow-450 {
+    font-weight: 450;
   }
 
   /* Cinematic vignette + grain for hero sections. */

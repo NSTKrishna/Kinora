@@ -82,10 +82,10 @@ export function JobCard({
 
   return (
     <article className="surface overflow-hidden">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/70 px-4 py-2.5">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2.5">
         <span
           className={cn(
-            "flex items-center gap-1.5 rounded-full px-2 py-1 text-micro font-medium uppercase tracking-[0.12em]",
+            "flex items-center gap-1.5 rounded-sm px-2 py-1 text-micro font-450 uppercase tracking-[0.12em]",
             active && "bg-primary/15 text-primary",
             job.status === "completed" && "bg-emerald-500/15 text-emerald-400",
             failed && "bg-destructive/15 text-destructive",
@@ -140,7 +140,7 @@ export function JobCard({
               <div
                 key={index}
                 className={cn(
-                  "relative overflow-hidden rounded-md border border-border/70 bg-muted/50",
+                  "relative overflow-hidden rounded-md border border-border bg-muted/50",
                   job.kind === "video" ? "aspect-video" : "aspect-square",
                 )}
               >
@@ -182,7 +182,7 @@ export function JobCard({
                   key={asset.id}
                   type="button"
                   onClick={() => onOpen(asset)}
-                  className="block w-full overflow-hidden rounded-md border border-border/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="block w-full overflow-hidden rounded-md border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <AssetMedia
                     asset={asset}
