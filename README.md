@@ -375,6 +375,14 @@ PROVIDER=fal  pnpm seed:demo   # real renders, real money, run once
 
 The output is committed, so the deployed site never depends on this having run.
 
+The placeholder clips the mock provider returns are drawn the same way, by
+[`scripts/generate-mock-media.sh`](scripts/generate-mock-media.sh) — 1280x720
+atmospheric plates with a filmic grade, one file per aspect *per supported
+length*, so a ten-second render returns a ten-second clip. **They are not AI
+renders and they will not look like one.** They exist so that development costs
+nothing and no third-party media ships with Kinora. Set `PROVIDER=fal` with a
+`FAL_KEY` for real output.
+
 ## Deploy
 
 Vercel, importing this repo. Build command `pnpm build`; the Next.js preset

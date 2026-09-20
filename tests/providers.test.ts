@@ -69,6 +69,51 @@ describe("the mock provider", () => {
     }
   });
 
+  it("returns a clip as long as the one that was paid for", async () => {
+    // A ten-second render costs 33 credits. Handing back a three-second file —
+    // which is what shipped before — is the demo lying about what it delivered.
+    const model = MODELS["ltx-t2v"];
+
+    for (const duration of [6, 8, 10]) {
+      const params = model.schema.parse({
+        prompt: "a clip of a given length",
+        duration,
+        resolution: "1080p",
+        aspect_ratio: "16:9",
+      });
+
+      const { providerRequestId } = await mockProvider.submit({
+        model,
+        params: params as Record<string, unknown>,
+        jobId: "00000000-0000-0000-0000-000000000000",
+      });
+      const [asset] = (await mockProvider.result(model, providerRequestId)).assets;
+
+      expect(asset.durationMs, `${duration}s`).toBe(duration * 1000);
+      expect(asset.url, `${duration}s`).toContain(`-${duration}s.mp4`);
+      // And it is worth watching: the first pass shipped 480x270.
+      expect(asset.width!, `${duration}s`).toBeGreaterThanOrEqual(1280);
+    }
+  });
+
+  it("matches the clip to the requested aspect", async () => {
+    const model = MODELS["ltx-t2v"];
+    for (const [aspect, portrait] of [["16:9", false], ["9:16", true]] as const) {
+      const { providerRequestId } = await mockProvider.submit({
+        model,
+        params: model.schema.parse({
+          prompt: "an aspect probe",
+          aspect_ratio: aspect,
+          duration: 6,
+          resolution: "1080p",
+        }) as Record<string, unknown>,
+        jobId: "00000000-0000-0000-0000-000000000000",
+      });
+      const [asset] = (await mockProvider.result(model, providerRequestId)).assets;
+      expect(asset.height! > asset.width!, aspect).toBe(portrait);
+    }
+  });
+
   it("honours the failure and refusal directives", async () => {
     const model = MODELS["flux-schnell"];
     for (const [directive, state] of [

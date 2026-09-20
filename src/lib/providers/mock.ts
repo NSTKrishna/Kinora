@@ -44,13 +44,43 @@ export const MOCK_DIRECTIVES: Record<Exclude<MockMode, "ok">, string> = {
   slow: "[[slow]]",
 };
 
-/** Mock clips, rendered by us with ffmpeg. No third-party media ships here. */
-const MOCK_CLIPS: Record<string, { url: string; width: number; height: number }> = {
-  "16:9": { url: "/mock/ember-16x9.mp4", width: 640, height: 360 },
-  "9:16": { url: "/mock/dusk-9x16.mp4", width: 360, height: 640 },
-  "1:1": { url: "/mock/fog-1x1.mp4", width: 480, height: 480 },
-  auto: { url: "/mock/amber-16x9.mp4", width: 640, height: 360 },
-};
+/**
+ * Mock clips, drawn by us with ffmpeg — see scripts/generate-mock-media.sh.
+ * No third-party media ships with Kinora.
+ *
+ * There is a file per aspect *per supported length*, because a clip has to be
+ * as long as the one that was paid for. Handing back three seconds for a
+ * ten-second render is the demo lying about what it delivered.
+ */
+const MOCK_CLIP_SHAPES = {
+  "16:9": { slug: "ember-16x9", width: 1280, height: 720 },
+  "9:16": { slug: "dusk-9x16", width: 720, height: 1280 },
+  "1:1": { slug: "fog-1x1", width: 960, height: 960 },
+} as const;
+
+/** The lengths the registry offers, and therefore the files that exist. */
+const MOCK_CLIP_SECONDS = [6, 8, 10] as const;
+
+function mockClip(aspect: string, durationMs: number | undefined) {
+  const shape =
+    MOCK_CLIP_SHAPES[aspect as keyof typeof MOCK_CLIP_SHAPES] ?? MOCK_CLIP_SHAPES["16:9"];
+
+  const wanted = Math.round((durationMs ?? 6_000) / 1000);
+  const seconds =
+    MOCK_CLIP_SECONDS.find((s) => s === wanted) ??
+    // An unsupported length still gets the closest file that exists, and the
+    // reported duration below matches the file rather than the request.
+    MOCK_CLIP_SECONDS.reduce((best, s) =>
+      Math.abs(s - wanted) < Math.abs(best - wanted) ? s : best,
+    );
+
+  return {
+    url: `/mock/${shape.slug}-${seconds}s.mp4`,
+    width: shape.width,
+    height: shape.height,
+    durationMs: seconds * 1000,
+  };
+}
 
 function modeFromPrompt(prompt: string): MockMode {
   const lowered = prompt.toLowerCase();
@@ -105,11 +135,14 @@ function stillSize(ticket: MockTicket): { width: number; height: number } {
   return ASPECT_SIZES[ticket.aspect] ?? IMAGE_SIZES.square_hd;
 }
 
+/** Effect examples are 6s by definition, which is what every preset requests. */
+const EFFECT_CLIP = { width: 1280, height: 720, durationMs: 6_000 };
+
 /** An effect's own example, when the run came from one. */
 function clipFor(ticket: MockTicket) {
   const effect = ticket.preset ? EFFECTS.find((entry) => entry.slug === ticket.preset) : undefined;
-  if (effect) return { url: effect.exampleUrl, width: 480, height: 270 };
-  return MOCK_CLIPS[ticket.aspect] ?? MOCK_CLIPS.auto;
+  if (effect) return { url: effect.exampleUrl, ...EFFECT_CLIP };
+  return mockClip(ticket.aspect, ticket.durationMs);
 }
 
 function runningFor(mode: MockMode) {
@@ -165,7 +198,9 @@ export const mockProvider: GenerationProvider = {
             url: clip.url,
             width: clip.width,
             height: clip.height,
-            durationMs: ticket.durationMs ?? 5_000,
+            // The file's real length, not the length that was asked for — those
+            // are the same now, and where they cannot be, the file wins.
+            durationMs: clip.durationMs,
           },
         ],
       };

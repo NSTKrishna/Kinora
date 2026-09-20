@@ -22,6 +22,12 @@
      (AGENTS.md), so the light-surface tokens below are recorded for reference
      but unused. Depth comes from surface steps and photography instead.
 
+  On media: the system says "don't reduce image quality — cinematic photography
+  IS the design". Kinora cannot honour that without a provider key, so the
+  placeholder clips are the best a procedural plate gets: 1280x720, a single
+  off-centre light, real grain and falloff. They are honest placeholders, not
+  an imitation of a render.
+
   Everything else — pure black canvas, #1a1a1a surfaces, #27272a hairlines, cool
   slate secondary text, zero shadows, small radii, tight negative tracking,
   weight-450 uppercase micro labels — is applied as specified.
