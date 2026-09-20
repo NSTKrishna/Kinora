@@ -75,27 +75,59 @@ Check http://localhost:3000/api/health. You want:
 If `image` says `fal`, the Cloudflare variables are not being read. If `uploads` says
 `unconfigured`, one of the three Cloudinary values is missing.
 
+### Two credential traps worth knowing
+
+Both of these produce a valid-looking setup that fails on every call:
+
+- **Cloudflare token with no account attached.** `/user/tokens/verify` returns `active`
+  and the token still 401s, because the **Account Resources** dropdown was left empty
+  when the token was created. The only test that means anything is calling
+  `POST /accounts/<id>/ai/run/@cf/black-forest-labs/flux-1-schnell` directly.
+- **Cloudinary key without `create`.** Upload fails with
+  `missing permissions (actions=["create"])`. That is a key-permission error, not a
+  signature error — if the signature were wrong you would get `Invalid Signature`
+  instead. Use a key with upload rights.
+
 ---
 
 ## 3. Deploy to Vercel
 
-The local Postgres in your current `.env.local` **will not work from Vercel** — it is not
-reachable from the internet. Use the Neon URL.
+`DATABASE_URL` already points at Neon and the schema is migrated and seeded, so the
+deployment can reuse the same database — nothing further to run.
 
-1. Push the repo to GitHub
-2. vercel.com → **Add New… → Project** → import the repo → framework auto-detects Next.js
-3. Add every variable from §2 **plus** `DATABASE_URL` (the Neon one), `SESSION_SECRET`
-   (`openssl rand -base64 32`), and `NEXT_PUBLIC_APP_URL` set to the deployment URL
+1. vercel.com → **Add New… → Project** → import `NSTKrishna/Kinora` → Next.js is detected
+2. Expand **Environment Variables**. Vercel accepts a pasted `.env` block: paste the whole
+   contents of your `.env.local` in one go
+3. Add one more, which only exists once Vercel has given you a URL:
+   `NEXT_PUBLIC_APP_URL=https://<your-app>.vercel.app`
+   (deploy once, copy the URL, set it, redeploy — or set it to your custom domain now)
 4. Deploy
 
-Then run the migrations against Neon, from your machine:
+Then check `https://<your-app>.vercel.app/api/health`. It should read exactly as it does
+locally:
 
-```bash
-DATABASE_URL='<neon url>' pnpm db:migrate
-DATABASE_URL='<neon url>' pnpm db:seed
+```json
+"providers": { "mode": "hybrid", "image": "cloudflare", "video": "mock" },
+"uploads": "cloudinary",
+"database": "ok"
 ```
 
-Finally re-check `https://<your-app>.vercel.app/api/health`.
+### If you prefer the CLI
+
+```bash
+vercel login          # interactive, opens a browser
+vercel link
+vercel env add ...    # one per variable
+vercel --prod
+```
+
+The dashboard is easier here, purely because of the paste-a-whole-`.env` box.
+
+### Why `NEXT_PUBLIC_APP_URL` matters
+
+It is what makes the fal webhook URL absolute. Without it the app polls instead, which
+works fine — so a missing value degrades rather than breaks. Set it anyway so OG tags and
+shared links point at the right host.
 
 ### Why the app works on Vercel without a cron
 
