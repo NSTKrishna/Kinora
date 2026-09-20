@@ -197,12 +197,56 @@ function isUnreachable(error: unknown): boolean {
   );
 }
 
+/**
+ * Everything fal told us, not just the status line.
+ *
+ * The client throws an ApiError whose `message` is only the HTTP reason —
+ * "Forbidden", "Unprocessable Entity" — while `body.detail` carries the part
+ * that says what to do about it ("User is locked. Reason: Exhausted balance.").
+ * Reading only the message turned an actionable operator error into a shrug,
+ * and it also hid the safety wording that `looksFlagged` needs to map a refusal
+ * to `nsfw` instead of a plain failure.
+ */
 export function describe(error: unknown): string {
-  if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
+  if (!(error instanceof Error)) {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+
+  const parts: string[] = [];
+  const api = error as Error & { status?: number; body?: unknown };
+
+  if (typeof api.status === "number") parts.push(`HTTP ${api.status}`);
+  parts.push(error.message);
+
+  const detail = readDetail(api.body);
+  if (detail && !error.message.includes(detail)) parts.push(detail);
+
+  return parts.filter(Boolean).join(" — ");
+}
+
+/** fal puts the useful sentence in `detail`, sometimes as a validation array. */
+function readDetail(body: unknown): string | null {
+  if (!body) return null;
+  if (typeof body === "string") return body.slice(0, 300);
+
+  const detail = (body as { detail?: unknown }).detail;
+  if (typeof detail === "string") return detail.slice(0, 300);
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((d) => (typeof d === "string" ? d : (d as { msg?: string })?.msg))
+      .filter(Boolean);
+    if (messages.length) return messages.join("; ").slice(0, 300);
+  }
+
   try {
-    return JSON.stringify(error);
+    return JSON.stringify(body).slice(0, 300);
   } catch {
-    return String(error);
+    return null;
   }
 }

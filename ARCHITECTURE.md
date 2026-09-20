@@ -423,10 +423,10 @@ rendered frames — and only an explicit re-render rewinds it.
 from the Runway analysis in VoltAgent/awesome-design-md. It is a document an
 agent reads, not a stylesheet — the tokens that implement it live in two files:
 
-| File | Holds |
-| --- | --- |
+| File                  | Holds                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------- |
 | `src/app/globals.css` | Colour tokens, the `.surface` and `.eyebrow` primitives, reduced-motion and focus rules |
-| `tailwind.config.ts` | Type scale, radii, container width, the weight-450 step |
+| `tailwind.config.ts`  | Type scale, radii, container width, the weight-450 step                                 |
 
 The rules that actually shape the interface:
 
@@ -437,7 +437,7 @@ The rules that actually shape the interface:
 - **Nothing is pill-shaped.** 4px on buttons, 8px on containers. The only
   `rounded-full` left in the codebase is a status dot, which is a real circle.
 - **Negative tracking is the default**, even on body text, and display sizes sit
-  at line-height 1.0. That compression *is* the editorial feel.
+  at line-height 1.0. That compression _is_ the editorial feel.
 - **Uppercase micro labels at weight 450** with positive tracking — the
   intermediate weight is the precision detail the system calls out.
 - **The media is the UI.** The hero is a full-bleed clip; effect cards are their

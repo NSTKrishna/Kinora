@@ -125,6 +125,18 @@ That is the whole setup. **`PROVIDER=mock` is the default and costs nothing**: g
 
 Set `PROVIDER=fal` and `FAL_KEY` to hit the real provider. Nothing else changes.
 
+A fal key that is correctly configured can still be refused — most commonly for
+an exhausted balance, which fal answers with a 403. Kinora logs the provider's
+own sentence, so the reason is in the server output rather than buried:
+
+```
+[kinora] fal submit failed for job <id> (flux-schnell): HTTP 403 — Forbidden —
+User is locked. Reason: Exhausted balance. Top up your balance at fal.ai/dashboard/billing.
+```
+
+The render fails and the credits are refunded in full, so a provider outage or
+an empty balance never costs a visitor anything.
+
 ```bash
 pnpm typecheck && pnpm lint && pnpm test && pnpm build
 ```
@@ -377,8 +389,8 @@ The output is committed, so the deployed site never depends on this having run.
 
 The placeholder clips the mock provider returns are drawn the same way, by
 [`scripts/generate-mock-media.sh`](scripts/generate-mock-media.sh) — 1280x720
-atmospheric plates with a filmic grade, one file per aspect *per supported
-length*, so a ten-second render returns a ten-second clip. **They are not AI
+atmospheric plates with a filmic grade, one file per aspect _per supported
+length_, so a ten-second render returns a ten-second clip. **They are not AI
 renders and they will not look like one.** They exist so that development costs
 nothing and no third-party media ships with Kinora. Set `PROVIDER=fal` with a
 `FAL_KEY` for real output.

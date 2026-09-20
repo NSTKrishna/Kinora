@@ -88,6 +88,16 @@ export async function runGeneration(args: {
     return { job: claimed ?? job, balance: await getBalance(userId) };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Submit failed";
+
+    // Say it out loud. The reason is stored on the job row, but a submit that
+    // fails for an operator reason — an expired key, a locked account, an
+    // exhausted balance — is invisible to whoever is watching the deployment,
+    // and it fails every render until someone notices. The visitor still gets
+    // the generic message; this is for the logs.
+    console.error(
+      `[kinora] ${providerName()} submit failed for job ${job.id} (${model.id}): ${message}`,
+    );
+
     await transition(job, { status: "failed", error: message });
     throw new SubmitFailedError(message);
   }

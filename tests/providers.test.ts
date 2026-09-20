@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MODELS, type AnyModel } from "@/lib/models";
+import { describe as describeFalError } from "@/lib/providers/fal";
 import { mockProvider } from "@/lib/providers/mock";
 
 /**
@@ -98,7 +99,10 @@ describe("the mock provider", () => {
 
   it("matches the clip to the requested aspect", async () => {
     const model = MODELS["ltx-t2v"];
-    for (const [aspect, portrait] of [["16:9", false], ["9:16", true]] as const) {
+    for (const [aspect, portrait] of [
+      ["16:9", false],
+      ["9:16", true],
+    ] as const) {
       const { providerRequestId } = await mockProvider.submit({
         model,
         params: model.schema.parse({
@@ -140,3 +144,65 @@ function ageTicket(requestId: string): string {
   json.startedAt = Date.now() - 60_000;
   return `mock:${btoa(JSON.stringify(json)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`;
 }
+
+/* ---------------------------------------------------- fal error reporting */
+
+/** The shape @fal-ai/client actually throws: message is only the status line. */
+class ApiError extends Error {
+  status: number;
+  body: unknown;
+  constructor(message: string, status: number, body: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+describe("reporting a fal failure", () => {
+  it("keeps the part that says what to do about it", () => {
+    // A real 403 from fal. Reading only `message` gives "Forbidden", which
+    // tells an operator nothing; the sentence that matters is in body.detail.
+    const text = describeFalError(
+      new ApiError("Forbidden", 403, {
+        detail:
+          "User is locked. Reason: Exhausted balance. Top up your balance at fal.ai/dashboard/billing.",
+      }),
+    );
+
+    expect(text).toContain("403");
+    expect(text).toContain("Forbidden");
+    expect(text).toContain("Exhausted balance");
+    expect(text).toContain("fal.ai/dashboard/billing");
+  });
+
+  it("flattens a validation array into something readable", () => {
+    const text = describeFalError(
+      new ApiError("Unprocessable Entity", 422, {
+        detail: [{ msg: "duration must be one of 6, 8, 10" }, { msg: "image_url is required" }],
+      }),
+    );
+    expect(text).toContain("duration must be one of");
+    expect(text).toContain("image_url is required");
+  });
+
+  it("does not repeat itself when the detail is already the message", () => {
+    const text = describeFalError(new ApiError("Rate limited", 429, { detail: "Rate limited" }));
+    expect(text.match(/Rate limited/g)).toHaveLength(1);
+  });
+
+  it("still handles a plain error, a string and an object", () => {
+    expect(describeFalError(new Error("socket hang up"))).toContain("socket hang up");
+    expect(describeFalError("plain text")).toBe("plain text");
+    expect(describeFalError({ odd: true })).toContain("odd");
+  });
+
+  it("surfaces safety wording so a refusal maps to nsfw, not a failure", () => {
+    // looksFlagged() reads this string. If the detail were dropped, a content
+    // refusal would be recorded as a generic failure.
+    const text = describeFalError(
+      new ApiError("Unprocessable Entity", 422, { detail: "NSFW content detected in output" }),
+    );
+    expect(text.toLowerCase()).toContain("nsfw");
+  });
+});
