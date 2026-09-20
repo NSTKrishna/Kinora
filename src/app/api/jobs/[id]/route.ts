@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
 import { getJob, getJobAssets, isActive, sweepOpportunistically } from "@/lib/jobs";
 import { getModel } from "@/lib/models";
-import { getProvider } from "@/lib/providers";
+import { getProvider, type ProviderName } from "@/lib/providers";
 import { apiError, isUuid, toResponse } from "@/lib/api";
 import { serializeAsset, serializeJob } from "@/lib/serialize";
 import { reconcile } from "@/lib/reconcile";
@@ -34,7 +34,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     // through the same transition the webhook would have used.
     if (isActive(job.status) && job.providerRequestId) {
       const model = getModel(job.modelId);
-      if (model) job = await reconcile(job, model, getProvider(job.provider));
+      if (model) job = await reconcile(job, model, getProvider(job.provider as ProviderName));
     }
 
     return NextResponse.json({

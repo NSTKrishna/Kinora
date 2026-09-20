@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { isDatabaseConfigured } from "@/db";
 import { capacitySnapshot } from "@/lib/guards";
 import { countStuckJobs, STUCK_AFTER_MS } from "@/lib/jobs";
-import { providerName } from "@/lib/providers";
+import { providerRouting } from "@/lib/providers";
 import { DAILY_CREDITS, STARTER_CREDITS } from "@/lib/credits";
 
 export const metadata: Metadata = {
@@ -33,6 +33,7 @@ export default async function StatusPage() {
     : [null, 0];
 
   const healthy = Boolean(capacity && capacity.remaining > 0);
+  const routing = providerRouting();
 
   return (
     <div className="container py-8">
@@ -117,7 +118,8 @@ export default async function StatusPage() {
             Configuration
           </h2>
           <dl className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-y-1.5 text-xs">
-            <Row label="Provider" value={providerName()} />
+            <Row label="Stills" value={routing.image} />
+            <Row label="Video" value={routing.video} />
             <Row
               label="Database"
               value={configured ? (capacity ? "reachable" : "unreachable") : "unconfigured"}
@@ -127,7 +129,7 @@ export default async function StatusPage() {
               value={process.env.BLOB_READ_WRITE_TOKEN ? "configured" : "paste a URL instead"}
             />
           </dl>
-          {providerName() === "mock" ? (
+          {routing.mode === "mock" ? (
             <p className="mt-3 text-xs text-muted-foreground">
               The mock provider returns Kinora&apos;s own sample media after a short delay. Nothing
               is sent to a paid API and nothing is charged.

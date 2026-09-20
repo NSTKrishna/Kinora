@@ -194,14 +194,13 @@ const IMAGE_SIZE = {
 } as const;
 
 async function main() {
-  const { getProvider, providerName } = await import("@/lib/providers");
+  const { getProvider, providerFor, providerMode } = await import("@/lib/providers");
   const { getModel } = await import("@/lib/models");
 
-  const provider = getProvider();
-  const name = providerName();
+  const name = providerMode();
 
   console.log(`\nSeeding ${RECIPES.length} prompts through the ${name} provider.`);
-  if (name === "fal") {
+  if (name === "live") {
     console.log("This spends real money. Ctrl-C now if that was not the intention.\n");
     await new Promise((done) => setTimeout(done, 4000));
   }
@@ -216,6 +215,7 @@ async function main() {
     try {
       const modelId = recipe.kind === "image" ? "flux-schnell" : "ltx-t2v";
       const model = getModel(modelId)!;
+      const provider = getProvider(providerFor(model));
 
       const params = model.schema.parse(
         recipe.kind === "image"

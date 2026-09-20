@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
+  customType,
   index,
   integer,
   jsonb,
@@ -25,7 +26,7 @@ export const jobStatus = pgEnum("job_status", [
   "nsfw",
   "canceled",
 ]);
-export const providerName = pgEnum("provider_name", ["mock", "fal"]);
+export const providerName = pgEnum("provider_name", ["mock", "fal", "cloudflare"]);
 export const ledgerKind = pgEnum("ledger_kind", [
   "grant",
   "daily_grant",
@@ -172,6 +173,37 @@ export const presets = pgTable("presets", {
   sort: integer("sort").notNull().default(0),
 });
 
+/* ------------------------------------------------------------ media store */
+
+/**
+ * Bytes we hold ourselves.
+ *
+ * Most providers hand back a URL on their own CDN and there is nothing to
+ * store. Cloudflare Workers AI returns the image inline as base64, so it has to
+ * live somewhere — and with no `BLOB_READ_WRITE_TOKEN` configured there is no
+ * object store to put it in. Postgres is not where images belong long-term,
+ * but it works everywhere the app already runs, including Vercel's read-only
+ * filesystem, and needs no extra configuration to get the demo working.
+ *
+ * Rows are immutable and served from `/api/media/[id]` with a far-future cache
+ * header, so the database is read once per image per client.
+ */
+export const generatedMedia = pgTable(
+  "generated_media",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    contentType: text("content_type").notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    bytes: customType<{ data: Buffer; driverData: Buffer }>({
+      dataType: () => "bytea",
+    })("bytes").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("generated_media_user_created_idx").on(table.userId, table.createdAt.desc())],
+);
+
 /* -------------------------------------------------------- cinema projects */
 
 /**
@@ -242,4 +274,5 @@ export type Asset = typeof assets.$inferSelect;
 export type Preset = typeof presets.$inferSelect;
 export type CinemaProject = typeof cinemaProjects.$inferSelect;
 export type Character = typeof characters.$inferSelect;
+export type GeneratedMedia = typeof generatedMedia.$inferSelect;
 export type LedgerEntry = typeof creditLedger.$inferSelect;

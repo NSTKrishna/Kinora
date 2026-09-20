@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
 import { getJob, isActive, transition } from "@/lib/jobs";
 import { getModel } from "@/lib/models";
-import { getProvider } from "@/lib/providers";
+import { getProvider, type ProviderName } from "@/lib/providers";
 import { apiError, isUuid, toResponse } from "@/lib/api";
 import { serializeJob } from "@/lib/serialize";
 
@@ -32,7 +32,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     const model = getModel(job.modelId);
     if (model && job.providerRequestId) {
       try {
-        await getProvider(job.provider).cancel(model, job.providerRequestId);
+        await getProvider(job.provider as ProviderName).cancel(model, job.providerRequestId);
       } catch (error) {
         console.error("[kinora] provider cancel failed", error);
       }

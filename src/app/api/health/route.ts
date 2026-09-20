@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 import { getDb, isDatabaseConfigured } from "@/db";
 import { capacitySnapshot } from "@/lib/guards";
 import { countStuckJobs, STUCK_AFTER_MS } from "@/lib/jobs";
-import { providerName } from "@/lib/providers";
+import { providerRouting } from "@/lib/providers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function GET() {
 
   if (!isDatabaseConfigured()) {
     return NextResponse.json(
-      { ok: false, database: "unconfigured", provider: providerName() },
+      { ok: false, database: "unconfigured", providers: providerRouting() },
       { status: 503 },
     );
   }
@@ -34,7 +34,7 @@ export async function GET() {
     return NextResponse.json({
       ok: capacity.remaining > 0,
       database: "ok",
-      provider: providerName(),
+      providers: providerRouting(),
       uploads: process.env.BLOB_READ_WRITE_TOKEN ? "configured" : "unconfigured",
       capacity,
       jobs: { stuck, stuckAfterMinutes: STUCK_AFTER_MS / 60_000 },
@@ -43,7 +43,7 @@ export async function GET() {
   } catch (error) {
     console.error("[kinora] health check failed", error);
     return NextResponse.json(
-      { ok: false, database: "unreachable", provider: providerName() },
+      { ok: false, database: "unreachable", providers: providerRouting() },
       { status: 503 },
     );
   }

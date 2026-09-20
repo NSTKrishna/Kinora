@@ -8,7 +8,7 @@ import { charge, getBalance } from "@/lib/credits";
 import { assertCanGenerate } from "@/lib/guards";
 import { sweepOpportunistically, transition } from "@/lib/jobs";
 import type { AnyModel } from "@/lib/models";
-import { getProvider, providerName } from "@/lib/providers";
+import { getProvider, providerFor } from "@/lib/providers";
 import { checkPrompt } from "@/lib/safety";
 
 /**
@@ -48,7 +48,8 @@ export async function runGeneration(args: {
   // 3. Capacity guards.
   await assertCanGenerate({ userId, cost: credits, ipHash: args.ipHash });
 
-  const provider = getProvider();
+  const providerName = providerFor(model);
+  const provider = getProvider(providerName);
 
   // 4. Create the job, then charge it. The job id is the idempotency key.
   const [job] = await getDb()
@@ -61,7 +62,7 @@ export async function runGeneration(args: {
       status: "queued",
       input: params,
       compiledPrompt: prompt,
-      provider: providerName(),
+      provider: providerName,
       costCredits: credits,
     })
     .returning();
@@ -75,6 +76,7 @@ export async function runGeneration(args: {
       model,
       params,
       jobId: job.id,
+      userId,
       presetSlug: args.presetSlug,
       webhookUrl: args.webhookUrl,
     });
@@ -95,7 +97,7 @@ export async function runGeneration(args: {
     // and it fails every render until someone notices. The visitor still gets
     // the generic message; this is for the logs.
     console.error(
-      `[kinora] ${providerName()} submit failed for job ${job.id} (${model.id}): ${message}`,
+      `[kinora] ${providerName} submit failed for job ${job.id} (${model.id}): ${message}`,
     );
 
     await transition(job, { status: "failed", error: message });

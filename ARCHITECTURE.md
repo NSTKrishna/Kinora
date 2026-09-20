@@ -291,6 +291,18 @@ without that guard.
 
 `GenerationProvider` is four methods: `submit`, `status`, `result`, `cancel`.
 
+Which provider runs a model is named on the registry entry and resolved by
+`providerFor(model)`: plain text-to-image goes to **Cloudflare Workers AI**
+(free within a daily allowance), everything else to **fal**. `PROVIDER=mock`
+overrides both. A model routed to Cloudflare without credentials falls back to
+fal rather than failing every render.
+
+**cloudflare** is synchronous, square-only and returns bytes inline. The
+adapter absorbs all three: it renders during `submit()`, centre-crops to the
+requested frame with sharp, re-encodes as WebP and stores the result in
+`generated_media`, handing back a `/api/media/<id>` URL. Nothing outside the
+adapter knows the difference.
+
 **mock** is stateless by design. Everything `status()` and `result()` need is
 encoded in the request id as `mock:<base64url json>` — mode, start time, count,
 kind, aspect, size, preset — so it behaves identically across serverless

@@ -84,6 +84,11 @@ export type ModelDefinition<TSchema extends z.ZodTypeAny = z.ZodTypeAny> = {
   kind: "image" | "video";
   /** What the provider calls it. */
   providerModelId: string;
+  /**
+   * Who runs it when PROVIDER is live. Defaults to fal. Cloudflare is free
+   * within a daily allowance but only does plain text-to-image.
+   */
+  provider?: "fal" | "cloudflare";
   schema: TSchema;
   fields: FieldSpec[];
   capabilities: ModelCapabilities;
@@ -210,15 +215,20 @@ export const MODELS = {
   "flux-schnell": {
     id: "flux-schnell",
     label: "Kinora Still Fast",
-    blurb: "Four-step render. Quick drafts, cheap iterations.",
+    blurb: "Four-step render. Free, fast, composed square and cropped to frame.",
     kind: "image",
-    providerModelId: "fal-ai/flux/schnell",
+    // Cloudflare Workers AI runs the same model free within a daily allowance.
+    // It only makes 1024 squares, so the requested frame is centre-cropped from
+    // one — the dimensions are honest, the composition is a square's.
+    providerModelId: "@cf/black-forest-labs/flux-1-schnell",
+    provider: "cloudflare",
     schema: schnellParams,
     capabilities: { referenceImages: false, startEndFrames: false },
     // $0.003/MP, billed rounded up — a 1024² still is 2MP to fal. One credit
     // per billed megapixel keeps a standard still at ~2 credits.
     credits: (params) => megapixels(params.image_size) * params.num_images,
-    costNote: "fal-ai/flux/schnell — $0.003 per megapixel (2026-09-20)",
+    costNote:
+      "@cf/black-forest-labs/flux-1-schnell on Cloudflare Workers AI — free within 10,000 neurons/day, ~57.6 per image (2026-09-20)",
     fields: [
       { name: "image_size", label: "Frame", type: "select", options: sizeOptions },
       {
@@ -355,6 +365,11 @@ export type AnyModel = (typeof MODELS)[ModelId];
 
 export function getModel(id: string): AnyModel | undefined {
   return (MODELS as Record<string, AnyModel>)[id];
+}
+
+/** Optional fields are narrowed away by `satisfies`, so read them through this. */
+export function modelProvider(model: AnyModel): "fal" | "cloudflare" {
+  return "provider" in model && model.provider ? model.provider : "fal";
 }
 
 /** Capability flags are optional, so read them through these rather than inline. */

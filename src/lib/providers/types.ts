@@ -37,11 +37,13 @@ export type SubmitArgs = {
   jobId: string;
   /** Set when the run came from an effect preset. Only the mock reads it. */
   presetSlug?: string | null;
+  /** Whose render this is. Providers that hold the bytes need an owner. */
+  userId?: string;
   webhookUrl?: string;
 };
 
 export interface GenerationProvider {
-  readonly name: "mock" | "fal";
+  readonly name: "mock" | "fal" | "cloudflare";
   submit(args: SubmitArgs): Promise<{ providerRequestId: string }>;
   status(model: AnyModel, providerRequestId: string): Promise<ProviderStatus>;
   result(model: AnyModel, providerRequestId: string): Promise<ProviderResult>;

@@ -123,7 +123,27 @@ That is the whole setup. **`PROVIDER=mock` is the default and costs nothing**: g
 | `[[nsfw]]`  | The provider "refuses" it and refunds              |
 | `[[slow]]`  | A 20-second render, for testing cancel and refresh |
 
-Set `PROVIDER=fal` and `FAL_KEY` to hit the real provider. Nothing else changes.
+Set `PROVIDER=fal` to go live. From there, **generation is split across two
+providers**, chosen per model by the registry:
+
+| What | Who runs it | Cost |
+| --- | --- | --- |
+| Plain text-to-image | **Cloudflare Workers AI** (`@cf/black-forest-labs/flux-1-schnell`) | **Free** — 10,000 neurons/day, ~170 images, resets daily |
+| Reference-image stills | fal | ~$0.04/image |
+| Video, effects, Cinema clips | fal | ~$0.24 per 6s clip |
+
+Cloudflare needs `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`; without
+both, stills fall back to fal so nothing breaks. Three things about that
+endpoint shape the adapter, and are handled there rather than leaking out:
+
+- **It is synchronous, not a queue.** The render happens during `submit()`, so
+  Generate takes a couple of seconds instead of returning instantly.
+- **It only makes 1024 squares** — no width/height parameter. The requested
+  frame is centre-cropped from the square, so the dimensions are always the
+  ones asked for; what is lost is that the model composed for a square.
+- **It returns bytes, not a URL.** They are re-encoded as WebP and stored in
+  `generated_media`, served from `/api/media/[id]` with an immutable cache,
+  because no object store is configured.
 
 A fal key that is correctly configured can still be refused — most commonly for
 an exhausted balance, which fal answers with a 403. Kinora logs the provider's
